@@ -23,6 +23,8 @@ use DateTime;
 
 class Danfce extends Common
 {
+    use \NFePHP\DA\Common\XmlSanitizerTrait;
+
     protected $papel;
     protected $xml; // string XML NFe
     protected $logomarca=''; // path para logomarca em jpg
@@ -31,6 +33,16 @@ class Danfce extends Common
     protected $tpImp; //ambiente
     protected $fontePadrao='Times';
     protected $nfeProc;
+    /*
+     * PATCH 19 (fork): propriedades que eram criadas dinamicamente (deprecated no
+     * PHP 8.2). Públicas, como as dinâmicas eram.
+     */
+    public $dom;
+    public $orientacao;
+    public $logoAlign;
+    public $numero_registro_dpec;
+    public $wPrint;
+    public $hPrint;
     protected $nfe;
     protected $infNFe;
     protected $ide;
@@ -151,6 +163,32 @@ class Danfce extends Common
             'TO' => ''
         ],
     ];
+    /*
+     * PATCH 13 (consultadanfe, 2026-11-08): leiaute dinâmico do DANFE NFC-e conforme o
+     * Manual de Padrões DANFE NFC-e e QR Code v6.0 (mar/2025). Ver PATCHES.md.
+     * Cada bloco mede o próprio texto antes de desenhar: nada sobrepõe, nada sai da
+     * bobina e nada vira microtexto, com 1 ou 990 itens. O PDF é montado em 2 passos
+     * (mede → desenha) para que cada página tenha a altura exata do conteúdo.
+     */
+    /** @var \DOMElement|null grupo infProt do protocolo de autorização */
+    protected $infProt;
+    protected $tpEmis = '1';
+    protected $tpAmb = '1';
+    protected $urlChave = '';
+    protected $via = 'Via Consumidor';
+    /** Contingência off-line sem protocolo: imprime também a "Via Estabelecimento" (manual 3.1.8). */
+    protected $offlineDuasVias = true;
+    /** @var array{0:string,1:string}|null título e subtítulo de NFC-e cancelada/denegada */
+    protected $situacao = null;
+    /** Limite de altura de uma página (mm). PDF aceita até 14.400 pt = 5.080 mm (ISO 32000-1, anexo C). */
+    protected $limitePagina = 5000;
+    protected $margem = 2;
+    protected $yAtual = 0;
+    protected $medindo = false;
+    protected $alturasPaginas = [];
+    protected $paginaAtual = 0;
+    protected $pngQRCode = null;
+
     /**
      * __contruct
      *
@@ -183,14 +221,21 @@ class Danfce extends Common
         }
         $this->xml = $docXML;
         $this->logomarca = $sPathLogo;
-        if (empty($fonteDANFE)) {
-            $this->fontePadrao = 'Times';
-        } else {
-            $this->fontePadrao = $fonteDANFE;
-        }
+        $this->fontePadrao = 'Times';
         if (!empty($this->xml)) {
+            // PATCH consultadanfe: blindagem 2-camadas contra XMLs mal-formados
+            $this->xml = self::sanitizeXmlFreeText($this->xml);
             $this->dom = new Dom();
-            $this->dom->loadXML($this->xml);
+            $useInternalErrors = libxml_use_internal_errors(true);
+            $loaded = $this->dom->loadXML($this->xml);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors($useInternalErrors);
+            if (!$loaded || !empty($errors)) {
+                $this->xml = self::aggressiveEscape($this->xml);
+                $this->dom = new Dom();
+                $this->dom->loadXML($this->xml);
+            }
             $this->nfeProc    = $this->dom->getElementsByTagName("nfeProc")->item(0);
             $this->nfe        = $this->dom->getElementsByTagName("NFe")->item(0);
             $this->infNFe     = $this->dom->getElementsByTagName("infNFe")->item(0);
@@ -201,36 +246,49 @@ class Danfce extends Common
             $this->dest       = $this->dom->getElementsByTagName("dest")->item(0);
             $this->imposto    = $this->dom->getElementsByTagName("imposto")->item(0);
             $this->ICMSTot    = $this->dom->getElementsByTagName("ICMSTot")->item(0);
-            $this->tpImp      = $this->ide->getElementsByTagName("tpImp")->item(0)->nodeValue;
+            $this->tpImp      = $this->getTagValue($this->ide, "tpImp");
             $this->infAdic    = $this->dom->getElementsByTagName("infAdic")->item(0);
-            
+            $this->infProt    = $this->dom->getElementsByTagName("infProt")->item(0);
+            $this->tpEmis     = $this->getTagValue($this->ide, "tpEmis") ?: '1';
+            $this->tpAmb      = $this->getTagValue($this->ide, "tpAmb") ?: '1';
+            $this->urlChave   = $this->getTagValue($this->dom->documentElement, "urlChave");
             //se for o layout 4.0 busca pelas tags de detalhe do pagamento
             //senao, busca pelas tags de pagamento principal
             if ($this->infNFe->getAttribute("versao") == "4.00") {
                 $this->pag = $this->dom->getElementsByTagName("detPag");
-                
                 $tagPag = $this->dom->getElementsByTagName("pag")->item(0);
                 $this->vTroco = $this->getTagValue($tagPag, "vTroco");
             } else {
                 $this->pag = $this->dom->getElementsByTagName("pag");
             }
+            $qr = $this->dom->getElementsByTagName('qrCode')->item(0);
+            $this->qrCode = $qr ? trim($qr->nodeValue) : '';
         }
-        $this->qrCode = $this->dom->getElementsByTagName('qrCode')->item(0)->nodeValue;
         if ($this->getTagValue($this->ide, "mod") != '65') {
             throw new InvalidArgumentException("O xml do DANFE deve ser uma NFC-e modelo 65");
         }
+        $this->situacao = $this->situacaoNota();
     }
-    
+
     public function getPapel()
     {
         return $this->papel;
     }
-    
+
     public function setPapel($aPap)
     {
         $this->papel = $aPap;
     }
-    
+
+    /**
+     * Liga/desliga a 2ª via ("Via Estabelecimento") da contingência off-line sem protocolo.
+     * O manual permite que a UF dispense a 2ª via (item 3.1.8).
+     */
+    public function setOffLineDoublePrint($flag = true)
+    {
+        $this->offlineDuasVias = (bool) $flag;
+    }
+
     public function monta(
         $orientacao = 'P',
         $papel = '',
@@ -238,9 +296,9 @@ class Danfce extends Common
         $classPdf = false,
         $depecNumReg = ''
     ) {
-        $this->montaDANFE($orientacao, $papel, $logoAlign, $classPdf, $depecNumReg);
+        return $this->montaDANFE($orientacao, $papel, $logoAlign, $classPdf, $depecNumReg);
     }
-    
+
     public function montaDANFE(
         $orientacao = 'P',
         $papel = '',
@@ -248,699 +306,665 @@ class Danfce extends Common
         $classPdf = false,
         $depecNumReg = ''
     ) {
-        $qtdItens = $this->det->length;
-        $qtdPgto = $this->pag->length;
-        $hMaxLinha = $this->hMaxLinha;
-        $hBoxLinha = $this->hBoxLinha;
-        $hLinha = $this->hLinha;
-        $tamPapelVert = 160 + 16 + (($qtdItens - 1) * $hMaxLinha) + ($qtdPgto * $hLinha);
-        // verifica se existe informações adicionais
-        $this->textoAdic = '';
-        if (isset($this->infAdic)) {
-            $this->textoAdic .= !empty($this->infAdic->getElementsByTagName('infCpl')->item(0)->nodeValue) ?
-            'Inf. Contribuinte: '.
-            trim($this->pAnfavea($this->infAdic->getElementsByTagName('infCpl')->item(0)->nodeValue)) : '';
-            if (!empty($this->textoAdic)) {
-                $this->textoAdic = str_replace(";", "\n", $this->textoAdic);
-                $alinhas = explode("\n", $this->textoAdic);
-                $numlinhasdados = 0;
-                $tempPDF = new Pdf(); // cria uma instancia temporaria da class pdf
-                $tempPDF->SetFont('Times', '', '8'); // seta a font do PDF
-                foreach ($alinhas as $linha) {
-                    $linha = trim($linha);
-                    $numlinhasdados += $tempPDF->WordWrap($linha, 76 - 0.2);
-                }
-                $hdadosadic = round(($numlinhasdados + 1) * $tempPDF->fontSize, 0);
-                if ($hdadosadic < 5) {
-                    $hdadosadic = 5;
-                }
-                // seta o tamanho do papel
-                $tamPapelVert += $hdadosadic;
-            }
-        }
-        //se a orientação estiver em branco utilizar o padrão estabelecido na NF
-        if ($orientacao == '') {
-            $orientacao = 'P';
-        }
-        $this->orientacao = $orientacao;
-        $this->papel = array(80,$tamPapelVert);
+        $this->orientacao = 'P';
         $this->logoAlign = $logoAlign;
-        //$this->situacao_externa = $situacaoExterna;
         $this->numero_registro_dpec = $depecNumReg;
-        //instancia a classe pdf
-        if ($classPdf) {
-            $this->pdf = $classPdf;
-        } else {
-            $this->pdf = new Pdf($this->orientacao, 'mm', $this->papel);
+        $this->wPrint = 80 - 2 * $this->margem;
+        $this->textoAdic = $this->textoInfCpl();
+        $vias = ['Via Consumidor'];
+        if ($this->tpEmis == '9' && empty($this->infProt) && $this->situacao === null && $this->offlineDuasVias) {
+            $vias[] = 'Via Estabelecimento';
         }
-        //margens do PDF, em milímetros. Obs.: a margem direita é sempre igual à
-        //margem esquerda. A margem inferior *não* existe na FPDF, é definida aqui
-        //apenas para controle se necessário ser maior do que a margem superior
-        $margSup = 2;
-        $margEsq = 2;
-        $margInf = 2;
-        // posição inicial do conteúdo, a partir do canto superior esquerdo da página
-        $xInic = $margEsq;
-        $yInic = $margSup;
-        $maxW = 80;
-        $maxH = $tamPapelVert;
-        //total inicial de paginas
-        $totPag = 1;
-        //largura imprimivel em mm: largura da folha menos as margens esq/direita
-        $this->wPrint = $maxW-($margEsq*2);
-        //comprimento (altura) imprimivel em mm: altura da folha menos as margens
-        //superior e inferior
-        $this->hPrint = $maxH-$margSup-$margInf;
-        // estabelece contagem de paginas
+        // passo 1: mede (sem desenhar) para saber a altura de cada página
+        $this->medindo = true;
+        $this->alturasPaginas = [];
+        $this->pdf = new Pdf('P', 'mm', [80, $this->limitePagina]);
+        $this->desenhaVias($vias);
+        // passo 2: desenha, cada página com a altura medida
+        $this->medindo = false;
+        $this->pdf = $classPdf ? $classPdf : new Pdf('P', 'mm', [80, $this->alturasPaginas[0]]);
         $this->pdf->aliasNbPages();
-        $this->pdf->setMargins($margEsq, $margSup); // fixa as margens
         $this->pdf->setDrawColor(0, 0, 0);
         $this->pdf->setFillColor(255, 255, 255);
-        $this->pdf->open(); // inicia o documento
-        $this->pdf->addPage($this->orientacao, $this->papel); // adiciona a primeira página
-        $this->pdf->setLineWidth(0.1); // define a largura da linha
+        $this->pdf->open();
+        $this->desenhaVias($vias);
+        $this->papel = [80, $this->alturasPaginas[0]];
+        $this->hPrint = $this->alturasPaginas[0] - 2 * $this->margem;
+        $id = str_replace('NFe', '', $this->infNFe->getAttribute("Id"));
+        if ($classPdf !== false) {
+            return ['id' => $id, 'classe_PDF' => $this->pdf];
+        }
+        return $id;
+    }
+
+    /** Desenha o documento uma vez por via, cada via começando em página nova. */
+    protected function desenhaVias(array $vias)
+    {
+        $this->paginaAtual = 0;
+        foreach ($vias as $via) {
+            $this->via = $via;
+            $this->novaPagina();
+            $this->blocoEmitente();        // Divisão I
+            $this->blocoSituacao();        // cancelada / denegada / contingência
+            $this->blocoItens();           // Divisão II
+            $this->blocoTotais();          // Divisão III
+            $this->blocoMensagemFiscal();  // Divisão VIII
+            $this->blocoConsultaChave();   // Divisão IV
+            $this->blocoConsumidor();      // Divisão VI
+            $this->blocoIdentificacao();   // Divisão VII
+            $this->blocoQRCode();          // Divisão V
+            $this->blocoInfContribuinte(); // Divisão IX
+        }
+        $this->fechaPagina();
+    }
+
+    protected function novaPagina()
+    {
+        if ($this->paginaAtual > 0) {
+            $this->fechaPagina();
+        }
+        $this->paginaAtual++;
+        $altura = $this->medindo ? $this->limitePagina : $this->alturasPaginas[$this->paginaAtual - 1];
+        $this->pdf->addPage('P', [80, $altura]);
+        $this->pdf->setMargins($this->margem, $this->margem);
+        $this->pdf->setLineWidth(0.1);
         $this->pdf->setTextColor(0, 0, 0);
-        $this->pTextBox(0, 0, $maxW, $maxH); // POR QUE PRECISO DESA LINHA?
-        $hcabecalho = 27;//para cabeçalho (dados emitente mais logomarca)  (FIXO)
-        $hcabecalhoSecundario = 10;//para cabeçalho secundário (cabeçalho sefaz) (FIXO)
-        $hprodutos = $hLinha + ($qtdItens*$hMaxLinha) ;//box poduto
-        $hTotal = 12; //box total (FIXO)
-        $hpagamentos = $hLinha + ($qtdPgto*$hLinha);//para pagamentos
-        if (!empty($this->vTroco)) {
-            $hpagamentos += $hLinha;
-        }
-        $hmsgfiscal = 21;// para imposto (FIXO)
-        if (!isset($this->dest)) {
-            $hcliente = 6;// para cliente (FIXO)
-        } else {
-            $hcliente = 12;
-        }// para cliente (FIXO)};
-        $hQRCode = 50;// para qrcode (FIXO)
-        $hCabecItens = 4;//cabeçalho dos itens
-        
-        $hUsado = $hCabecItens;
-        $w2 = round($this->wPrint*0.31, 0);
-        $totPag = 1;
-        $pag = 1;
-        $x = $xInic;
-        //COLOCA CABEÇALHO
-        $y = $yInic;
-        $y = $this->pCabecalhoDANFE($x, $y, $hcabecalho, $pag, $totPag);
-        //COLOCA CABEÇALHO SECUNDÁRIO
-        $y = $hcabecalho;
-        $y = $this->pCabecalhoSecundarioDANFE($x, $y, $hcabecalhoSecundario);
-        //COLOCA PRODUTOS
-        $y = $xInic + $hcabecalho + $hcabecalhoSecundario;
-        $y = $this->pProdutosDANFE($x, $y, $hprodutos);
-        //COLOCA TOTAL
-        $y = $xInic + $hcabecalho + $hcabecalhoSecundario + $hprodutos;
-        $y = $this->pTotalDANFE($x, $y, $hTotal);
-        //COLOCA PAGAMENTOS
-        $y = $xInic + $hcabecalho + $hcabecalhoSecundario + $hprodutos + $hTotal;
-        $y = $this->pPagamentosDANFE($x, $y, $hpagamentos);
-        //COLOCA MENSAGEM FISCAL
-        $y = $xInic + $hcabecalho + $hcabecalhoSecundario + $hprodutos + $hTotal+ $hpagamentos;
-        $y = $this->pFiscalDANFE($x, $y, $hmsgfiscal);
-        //COLOCA CONSUMIDOR
-        $y = $xInic + $hcabecalho + $hcabecalhoSecundario + $hprodutos + $hTotal + $hpagamentos + $hmsgfiscal;
-        $y = $this->pConsumidorDANFE($x, $y, $hcliente);
-        //COLOCA QRCODE
-        $y = $xInic + $hcabecalho + $hcabecalhoSecundario + $hprodutos
-            + $hTotal + $hpagamentos + $hmsgfiscal + $hcliente;
-        $y = $this->pQRDANFE($x, $y, $hQRCode);
-        
-        //adiciona as informações opcionais
-        if (!empty($this->textoAdic)) {
-            $y = $xInic + $hcabecalho + $hcabecalhoSecundario + $hprodutos
-            + $hTotal + $hpagamentos + $hmsgfiscal + $hcliente + $hQRCode;
-            $hInfAdic = 0;
-            $y = $this->pInfAdic($x, $y, $hInfAdic);
-        }
-        
-        //retorna o ID na NFe
-        if ($classPdf!==false) {
-            $aR = [
-             'id'=>str_replace('NFe', '', $this->infNFe->getAttribute("Id")),
-             'classe_PDF'=>$this->pdf
-            ];
-            return $aR;
-        } else {
-            return str_replace('NFe', '', $this->infNFe->getAttribute("Id"));
+        $this->yAtual = $this->margem;
+    }
+
+    protected function fechaPagina()
+    {
+        if ($this->medindo) {
+            $this->alturasPaginas[$this->paginaAtual - 1] = ceil($this->yAtual + $this->margem + 1);
         }
     }
-    
-    protected function pCabecalhoDANFE($x = 0, $y = 0, $h = 0, $pag = '1', $totPag = '1')
+
+    /** Quebra a página se o próximo trecho (altura $h, em mm) não couber. */
+    protected function garante($h)
     {
-        $emitRazao  = $this->getTagValue($this->emit, "xNome");
-        $emitCnpj   = $this->getTagValue($this->emit, "CNPJ");
-        $emitCnpj   = $this->pFormat($emitCnpj, "##.###.###/####-##");
-        $emitIE     = $this->getTagValue($this->emit, "IE");
-        $emitIM     = $this->getTagValue($this->emit, "IM");
-        $emitFone = $this->getTagValue($this->enderEmit, "fone");
-        $foneLen = strlen($emitFone);
-        if ($foneLen>0) {
-            $ddd = substr($emitFone, 0, 2);
-            $fone1 = substr($emitFone, -8);
-            $digito9 = ' ';
-            if ($foneLen == 11) {
-                $digito9 = substr($emitFone, 2, 1);
-            }
-            $emitFone = ' - ('.$ddd.') '.$digito9. ' ' . substr($fone1, 0, 4) . '-' . substr($fone1, -4);
-        } else {
-            $emitFone = '';
+        if ($this->yAtual + $h > $this->limitePagina - $this->margem && $this->yAtual > $this->margem + 1) {
+            $this->novaPagina();
+            return true;
         }
-        $emitLgr = $this->getTagValue($this->enderEmit, "xLgr");
-        $emitNro = $this->getTagValue($this->enderEmit, "nro");
-        $emitCpl = $this->getTagValue($this->enderEmit, "xCpl", "");
-        $emitBairro = $this->getTagValue($this->enderEmit, "xBairro");
-        $emitCEP = $this->pFormat($this->getTagValue($this->enderEmit, "CEP"), "#####-###");
-        $emitMun = $this->getTagValue($this->enderEmit, "xMun");
-        $emitUF = $this->getTagValue($this->enderEmit, "UF");
-        // CONFIGURAÇÃO DE POSIÇÃO
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $h = $h-($margemInterna);
-        //COLOCA LOGOMARCA
-        if (is_file($this->logomarca)) {
-            $xImg = $margemInterna;
-            $yImg = $margemInterna + 1;
-            $this->pdf->Image($this->logomarca, $xImg, $yImg, 30, 22.5);
-            $xRs = ($maxW*0.4) + $margemInterna;
-            $wRs = ($maxW*0.6);
-            $alignEmit = 'L';
-        } else {
-            $xRs = $margemInterna;
-            $wRs = ($maxW*1);
-            $alignEmit = 'L';
+        return false;
+    }
+
+    /** Texto como o pTextBox o desenha (entidades decodificadas, Windows-1252). */
+    protected static function paraFonte($texto)
+    {
+        $texto = trim(html_entity_decode((string) $texto, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        return mb_convert_encoding($texto, 'Windows-1252', 'UTF-8');
+    }
+
+    /** Altura (mm) do texto quebrado na largura $w com a fonte $aFont — a mesma quebra do pTextBox. */
+    protected function alturaTexto($texto, $w, $aFont)
+    {
+        $t = self::paraFonte($texto);
+        if ($t === '') {
+            return 0;
         }
-        //COLOCA RAZÃO SOCIAL
-        $texto = $emitRazao;
-        $texto = $texto . "\nCNPJ:" . $emitCnpj;
-        $texto = $texto . "\nIE:" . $emitIE;
-        if (!empty($emitIM)) {
-            $texto = $texto . " - IM:" . $emitIM;
+        $this->pdf->setFont($aFont['font'], $aFont['style'], $aFont['size']);
+        $n = $this->pdf->wordWrap($t, $w);
+        return $n * $this->pdf->fontSize;
+    }
+
+    protected function fonte($size = 7, $style = '')
+    {
+        return ['font' => $this->fontePadrao, 'size' => $size, 'style' => $style];
+    }
+
+    /**
+     * Desenha uma linha com uma ou mais colunas, na altura da coluna mais alta.
+     * Cada coluna: [x relativo à margem, largura, texto, aFont, alinhamento].
+     * A largura de quebra desconta 0,6 mm (o pTextBox desenha 'L' em x + 0,5).
+     */
+    protected function linha(array $colunas, $espacoDepois = 0.3)
+    {
+        $alturas = [];
+        $h = 0;
+        foreach ($colunas as $k => $c) {
+            $alturas[$k] = $this->alturaTexto($c[2], $c[1] - 0.6, $c[3]);
+            $h = max($h, $alturas[$k]);
         }
-        $texto = $texto . "\n" . $emitLgr . "," . $emitNro . " " . $emitCpl . "," . $emitBairro
-                . ". CEP:" . $emitCEP . ". " . $emitMun . "-" . $emitUF . $emitFone;
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>8, 'style'=>'');
-        $this->pTextBox($xRs, $y, $wRs, $h, $texto, $aFont, 'C', $alignEmit, 0, '', false);
-    }
-    
-    protected function pCabecalhoSecundarioDANFE($x = 0, $y = 0, $h = 0)
-    {
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $w = ($maxW*1);
-        $hBox1 = 7;
-        $texto = "DANFE NFC-e\nDocumento Auxiliar da Nota Fiscal de Consumidor Eletrônica";
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>8, 'style'=>'B');
-        $this->pTextBox($x, $y, $w, $hBox1, $texto, $aFont, 'C', 'C', 0, '', false);
-        $hBox2 = 4;
-        $yBox2 = $y + $hBox1;
-        $texto = "\nNFC-e não permite aproveitamento de crédito de ICMS";
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
-        $this->pTextBox($x, $yBox2, $w, $hBox2, $texto, $aFont, 'C', 'C', 0, '', false);
-    }
-    
-    protected function pProdutosDANFE($x = 0, $y = 0, $h = 0)
-    {
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $qtdItens = $this->det->length;
-        $w = ($maxW*1);
-        $hLinha = $this->hLinha;
-        $aFontCabProdutos = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $wBoxCod = $w*0.17;
-        $texto = "CÓDIGO";
-        $this->pTextBox($x, $y, $wBoxCod, $hLinha, $texto, $aFontCabProdutos, 'T', 'L', 0, '', false);
-        $wBoxDescricao = $w*0.43;
-        $xBoxDescricao = $wBoxCod + $x;
-        $texto = "DESCRICÃO";
-        $this->pTextBox(
-            $xBoxDescricao,
-            $y,
-            $wBoxDescricao,
-            $hLinha,
-            $texto,
-            $aFontCabProdutos,
-            'T',
-            'L',
-            0,
-            '',
-            false
-        );
-        $wBoxQt = $w*0.08;
-        $xBoxQt = $wBoxDescricao + $xBoxDescricao;
-        $texto = "QT";
-        $this->pTextBox($xBoxQt, $y, $wBoxQt, $hLinha, $texto, $aFontCabProdutos, 'T', 'L', 0, '', false);
-        $wBoxUn = $w*0.06;
-        $xBoxUn = $wBoxQt + $xBoxQt;
-        $texto = "UN";
-        $this->pTextBox($xBoxUn, $y, $wBoxUn, $hLinha, $texto, $aFontCabProdutos, 'T', 'L', 0, '', false);
-        $wBoxVl = $w*0.13;
-        $xBoxVl = $wBoxUn + $xBoxUn;
-        $texto = "VALOR";
-        $this->pTextBox($xBoxVl, $y, $wBoxVl, $hLinha, $texto, $aFontCabProdutos, 'T', 'L', 0, '', false);
-        $wBoxTotal = $w*0.13;
-        $xBoxTotal = $wBoxVl + $xBoxVl;
-        $texto = "TOTAL";
-        $this->pTextBox($xBoxTotal, $y, $wBoxTotal, $hLinha, $texto, $aFontCabProdutos, 'T', 'L', 0, '', false);
-        $hBoxLinha = $this->hBoxLinha;
-        $hMaxLinha = $this->hMaxLinha;
-        $cont = 0;
-        $aFontProdutos = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
-        if ($qtdItens > 0) {
-            foreach ($this->det as $detI) {
-                $thisItem   = $detI;
-                $prod       = $thisItem->getElementsByTagName("prod")->item(0);
-                $nitem      = $thisItem->getAttribute("nItem");
-                $cProd      = $this->getTagValue($prod, "cProd");
-                $xProd      = $this->getTagValue($prod, "xProd");
-                $qCom       = number_format($this->getTagValue($prod, "qCom"), 2, ",", ".");
-                $uCom       = $this->getTagValue($prod, "uCom");
-                $vUnCom     = number_format($this->getTagValue($prod, "vUnCom"), 2, ",", ".");
-                $vProd      = number_format($this->getTagValue($prod, "vProd"), 2, ",", ".");
-                //COLOCA PRODUTO
-                $yBoxProd = $y + $hLinha + ($cont*$hMaxLinha);
-                //COLOCA PRODUTO CÓDIGO
-                $wBoxCod = $w*0.17;
-                $texto = $cProd;
-                $this->pTextBox($x, $yBoxProd, $wBoxCod, $hMaxLinha, $texto, $aFontProdutos, 'C', 'C', 0, '', false);
-                //COLOCA PRODUTO DESCRIÇÃO
-                $wBoxDescricao = $w*0.43;
-                $xBoxDescricao = $wBoxCod + $x;
-                $texto = $xProd;
-                $this->pTextBox(
-                    $xBoxDescricao,
-                    $yBoxProd,
-                    $wBoxDescricao,
-                    $hMaxLinha,
-                    $texto,
-                    $aFontProdutos,
-                    'C',
-                    'L',
-                    0,
-                    '',
-                    false
-                );
-                //COLOCA PRODUTO QUANTIDADE
-                $wBoxQt = $w*0.08;
-                $xBoxQt = $wBoxDescricao + $xBoxDescricao;
-                $texto = $qCom;
-                $this->pTextBox(
-                    $xBoxQt,
-                    $yBoxProd,
-                    $wBoxQt,
-                    $hMaxLinha,
-                    $texto,
-                    $aFontProdutos,
-                    'C',
-                    'C',
-                    0,
-                    '',
-                    false
-                );
-                //COLOCA PRODUTO UNIDADE
-                $wBoxUn = $w*0.06;
-                $xBoxUn = $wBoxQt + $xBoxQt;
-                $texto = $uCom;
-                $this->pTextBox(
-                    $xBoxUn,
-                    $yBoxProd,
-                    $wBoxUn,
-                    $hMaxLinha,
-                    $texto,
-                    $aFontProdutos,
-                    'C',
-                    'C',
-                    0,
-                    '',
-                    false
-                );
-                //COLOCA PRODUTO VL UNITÁRIO
-                $wBoxVl = $w*0.13;
-                $xBoxVl = $wBoxUn + $xBoxUn;
-                $texto = $vUnCom;
-                $this->pTextBox(
-                    $xBoxVl,
-                    $yBoxProd,
-                    $wBoxVl,
-                    $hMaxLinha,
-                    $texto,
-                    $aFontProdutos,
-                    'C',
-                    'R',
-                    0,
-                    '',
-                    false
-                );
-                //COLOCA PRODUTO VL TOTAL
-                $wBoxTotal = $w*0.13;
-                $xBoxTotal = $wBoxVl + $xBoxVl;
-                $texto = $vProd;
-                $this->pTextBox(
-                    $xBoxTotal,
-                    $yBoxProd,
-                    $wBoxTotal,
-                    $hMaxLinha,
-                    $texto,
-                    $aFontProdutos,
-                    'C',
-                    'R',
-                    0,
-                    '',
-                    false
-                );
-                
-                $cont++;
-            }
+        if ($h <= 0) {
+            return 0;
         }
-    }
-    
-    protected function pTotalDANFE($x = 0, $y = 0, $h = 0)
-    {
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $hLinha = 3;
-        $wColEsq = ($maxW*0.7);
-        $wColDir = ($maxW*0.3);
-        $xValor = $x + $wColEsq;
-        $qtdItens = $this->det->length;
-        $vProd = $this->getTagValue($this->ICMSTot, "vProd");
-        $vNF = $this->getTagValue($this->ICMSTot, "vNF");
-        $vDesc  = $this->getTagValue($this->ICMSTot, "vDesc");
-        $vFrete = $this->getTagValue($this->ICMSTot, "vFrete");
-        $vTotTrib = $this->getTagValue($this->ICMSTot, "vTotTrib");
-        $texto = "Qtd. Total de Itens";
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($x, $y, $wColEsq, $hLinha, $texto, $aFont, 'T', 'L', 0, '', false);
-        $texto = $qtdItens;
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($xValor, $y, $wColDir, $hLinha, $texto, $aFont, 'T', 'R', 0, '', false);
-        $yTotal = $y + ($hLinha);
-        $texto = "Total de Produtos";
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($x, $yTotal, $wColEsq, $hLinha, $texto, $aFont, 'T', 'L', 0, '', false);
-        $texto = "R$ " . number_format($vProd, 2, ",", ".");
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($xValor, $yTotal, $wColDir, $hLinha, $texto, $aFont, 'T', 'R', 0, '', false);
-        $yDesconto = $y + ($hLinha*2);
-        $texto = "Descontos";
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($x, $yDesconto, $wColEsq, $hLinha, $texto, $aFont, 'T', 'L', 0, '', false);
-        $texto = "R$ " . $vDesc;
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($xValor, $yDesconto, $wColDir, $hLinha, $texto, $aFont, 'T', 'R', 0, '', false);
-        $yFrete= $y + ($hLinha*3);
-        $texto = "Frete";
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($x, $yFrete, $wColEsq, $hLinha, $texto, $aFont, 'T', 'L', 0, '', false);
-        $texto = "R$ " . $vFrete;
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($xValor, $yFrete, $wColDir, $hLinha, $texto, $aFont, 'T', 'R', 0, '', false);
-        $yTotalFinal = $y + ($hLinha*4);
-        $texto = "Total";
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($x, $yTotalFinal, $wColEsq, $hLinha, $texto, $aFont, 'T', 'L', 0, '', false);
-        $texto = "R$ " . $vNF;
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($xValor, $yTotalFinal, $wColDir, $hLinha, $texto, $aFont, 'T', 'R', 0, '', false);
-        $yTotalFinal = $y + ($hLinha*5);
-        $texto = "Informação dos Tributos Totais Incidentes";
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
-        $this->pTextBox($x, $yTotalFinal, $wColEsq, $hLinha, $texto, $aFont, 'T', 'L', 0, '', false);
-        $texto = "R$ " . $vTotTrib;
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $this->pTextBox($xValor, $yTotalFinal, $wColDir, $hLinha, $texto, $aFont, 'T', 'R', 0, '', false);
-    }
-    
-    protected function pPagamentosDANFE($x = 0, $y = 0, $h = 0)
-    {
-        $y += 6;
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $qtdPgto = $this->pag->length;
-        $w = ($maxW*1);
-        $hLinha = $this->hLinha;
-        $wColEsq = ($maxW*0.7);
-        $wColDir = ($maxW*0.3);
-        $xValor = $x + $wColEsq;
-        $aFontPgto = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
-        $wBoxEsq = $w*0.7;
-        $texto = "FORMA DE PAGAMENTO";
-        $this->pTextBox($x, $y, $wBoxEsq, $hLinha, $texto, $aFontPgto, 'T', 'L', 0, '', false);
-        $wBoxDir = $w*0.3;
-        $xBoxDescricao = $x + $wBoxEsq;
-        $texto = "VALOR PAGO";
-        $this->pTextBox($xBoxDescricao, $y, $wBoxDir, $hLinha, $texto, $aFontPgto, 'T', 'R', 0, '', false);
-        $cont = 0;
-        if ($qtdPgto > 0) {
-            foreach ($this->pag as $pagI) {
-                $tPag = $this->getTagValue($pagI, "tPag");
-                $tPagNome = $this->tipoPag($tPag);
-                $tPnome = $tPagNome;
-                $vPag = number_format($this->getTagValue($pagI, "vPag"), 2, ",", ".");
-                $card = $pagI->getElementsByTagName("card")->item(0);
-                $cardCNPJ = '';
-                $tBand = '';
-                $tBandNome = '';
-                if (isset($card)) {
-                    $cardCNPJ = $this->getTagValue($card, "CNPJ");
-                    $tBand    = $this->getTagValue($card, "tBand");
-                    $cAut = $this->getTagValue($card, "cAut");
-                    $tBandNome = self::getCardName($tBand);
+        $this->garante($h);
+        if (!$this->medindo) {
+            foreach ($colunas as $k => $c) {
+                if ($alturas[$k] > 0) {
+                    $this->pTextBox(
+                        $this->margem + $c[0],
+                        $this->yAtual,
+                        $c[1] - 0.6,
+                        $alturas[$k],
+                        $c[2],
+                        $c[3],
+                        'T',
+                        $c[4],
+                        0,
+                        '',
+                        false
+                    );
                 }
-                //COLOCA PRODUTO
-                $yBoxProd = $y + $hLinha + ($cont*$hLinha);
-                //COLOCA PRODUTO CÓDIGO
-                $texto = $tPagNome;
-                $this->pTextBox($x, $yBoxProd, $wBoxEsq, $hLinha, $texto, $aFontPgto, 'T', 'L', 0, '', false);
-                //COLOCA PRODUTO DESCRIÇÃO
-                $xBoxDescricao = $wBoxEsq + $x;
-                $texto = "R$ " . $vPag;
-                $this->pTextBox(
-                    $xBoxDescricao,
-                    $yBoxProd,
-                    $wBoxDir,
-                    $hLinha,
-                    $texto,
-                    $aFontPgto,
-                    'C',
-                    'R',
-                    0,
-                    '',
-                    false
-                );
-                $cont++;
             }
-            
-            if (!empty($this->vTroco)) {
-                $yBoxProd = $y + $hLinha + ($cont*$hLinha);
-                //COLOCA PRODUTO CÓDIGO
-                $texto = 'Troco';
-                $this->pTextBox($x, $yBoxProd, $wBoxEsq, $hLinha, $texto, $aFontPgto, 'T', 'L', 0, '', false);
-                //COLOCA PRODUTO DESCRIÇÃO
-                $xBoxDescricao = $wBoxEsq + $x;
-                $texto = "R$ " . number_format($this->vTroco, 2, ",", ".");
-                $this->pTextBox(
-                    $xBoxDescricao,
-                    $yBoxProd,
-                    $wBoxDir,
-                    $hLinha,
-                    $texto,
-                    $aFontPgto,
-                    'C',
-                    'R',
-                    0,
-                    '',
-                    false
-                );
-            }
+        }
+        $this->yAtual += $h + $espacoDepois;
+        return $h;
+    }
+
+    /** Texto em uma coluna só, na largura útil inteira. */
+    protected function texto($texto, $size = 7, $style = '', $align = 'C', $espacoDepois = 0.3)
+    {
+        return $this->linha([[0, $this->wPrint, $texto, $this->fonte($size, $style), $align]], $espacoDepois);
+    }
+
+    /** Linha separadora entre divisões. */
+    protected function separador()
+    {
+        $this->garante(2);
+        if (!$this->medindo) {
+            $y = $this->yAtual + 0.9;
+            $this->pdf->line($this->margem, $y, $this->margem + $this->wPrint, $y);
+        }
+        $this->yAtual += 1.8;
+    }
+
+    /**
+     * Número do XML formatado com vírgula decimal e ponto de milhar, SEM passar por
+     * float (vUnCom tem até 21 dígitos significativos; float perderia os últimos).
+     * Mantém todas as casas decimais significativas (mínimo $minDec).
+     */
+    protected static function numero($valor, $minDec = 2)
+    {
+        $v = trim((string) $valor);
+        if ($v === '') {
+            return '';
+        }
+        $sinal = '';
+        if ($v[0] === '-' || $v[0] === '+') {
+            $sinal = $v[0] === '-' ? '-' : '';
+            $v = substr($v, 1);
+        }
+        if (!preg_match('/^\d*(\.\d*)?$/', $v)) {
+            return trim((string) $valor); // não numérico: imprime como veio
+        }
+        $partes = explode('.', $v, 2);
+        $inteiro = ltrim($partes[0], '0');
+        $inteiro = $inteiro === '' ? '0' : $inteiro;
+        $dec = str_pad(rtrim($partes[1] ?? '', '0'), $minDec, '0');
+        $inteiro = strrev(implode('.', str_split(strrev($inteiro), 3)));
+        return $sinal . $inteiro . ($dec !== '' ? ',' . $dec : '');
+    }
+
+    protected static function dataHora($valor)
+    {
+        $valor = trim((string) $valor);
+        if ($valor === '') {
+            return '';
+        }
+        try {
+            // o XML traz o fuso do emitente: o formato mantém a hora local dele
+            return (new DateTime($valor))->format('d/m/Y H:i:s');
+        } catch (\Exception $e) {
+            return $valor;
         }
     }
-    
-    protected function pFiscalDANFE($x = 0, $y = 0, $h = 0)
+
+    protected function documento($valor)
     {
-        $y += 6;
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $w = ($maxW*1);
-        $hLinha = $this->hLinha;
-        $aFontTit = array('font'=>$this->fontePadrao, 'size'=>8, 'style'=>'B');
-        $aFontTex = array('font'=>$this->fontePadrao, 'size'=>8, 'style'=>'');
-        $digVal = $this->getTagValue($this->nfe, "DigestValue");
-        $chNFe = str_replace('NFe', '', $this->infNFe->getAttribute("Id"));
-        $tpAmb = $this->getTagValue($this->ide, 'tpAmb');
-        
-        if ($this->pNotaCancelada()) {
-            //101 Cancelamento
-            $this->pdf->SetTextColor(255, 0, 0);
-            $texto = "NFCe CANCELADA";
-            $this->pTextBox($x, $y - 25, $w, $h, $texto, $aFontTit, 'C', 'C', 0, '');
-            $this->pdf->SetTextColor(0, 0, 0);
+        $d = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string) $valor));
+        if (strlen($d) === 14) {
+            return $this->pFormat($d, '##.###.###/####-##');
         }
-        
-        if ($this->pNotaDenegada()) {
-            //uso denegado
-            $this->pdf->SetTextColor(255, 0, 0);
-            $texto = "NFCe CANCELADA";
-            $this->pTextBox($x, $y - 25, $w, $h, $texto, $aFontTit, 'C', 'C', 0, '');
-            $this->pdf->SetTextColor(0, 0, 0);
+        if (strlen($d) === 11) {
+            return $this->pFormat($d, '###.###.###-##');
         }
-        
-        $cUF = $this->getTagValue($this->ide, 'cUF');
-        $nNF = $this->getTagValue($this->ide, 'nNF');
-        $serieNF = str_pad($this->getTagValue($this->ide, "serie"), 3, "0", STR_PAD_LEFT);
-        $dhEmi = $this->getTagValue($this->ide, "dhEmi");
-        $dhEmilocal = new \DateTime($dhEmi);
-        $dhEmiLocalFormat = $dhEmilocal->format('d/m/Y H:i:s');
-        $urlChave = $this->urlConsulta[$tpAmb][$this->UFSigla[$cUF]];
-        $texto = "ÁREA DE MENSAGEM FISCAL";
-        $this->pTextBox($x, $y, $w, $hLinha, $texto, $aFontTit, 'C', 'C', 0, '', false);
-        $yTex1 = $y + ($hLinha*1);
-        $hTex1 = $hLinha*2;
-        $texto = "Número " . $nNF . " Série " . $serieNF . " " .$dhEmiLocalFormat . " - Via Consumidor";
-        $this->pTextBox($x, $yTex1, $w, $hTex1, $texto, $aFontTex, 'C', 'C', 0, '', false);
-        $yTex2 = $y + ($hLinha*3);
-        $hTex2 = $hLinha*2;
-        $texto = "Consulte pela Chave de Acesso em " . $urlChave;
-        $this->pTextBox($x, $yTex2, $w, $hTex2, $texto, $aFontTex, 'C', 'C', 0, '', false);
-        $texto = "CHAVE DE ACESSO";
-        $yTit2 = $y + ($hLinha*5);
-        $this->pTextBox($x, $yTit2, $w, $hLinha, $texto, $aFontTit, 'C', 'C', 0, '', false);
-        $yTex3 = $y + ($hLinha*6);
-        $texto = $chNFe;
-        $this->pTextBox($x, $yTex3, $w, $hLinha, $texto, $aFontTex, 'C', 'C', 0, '', false);
+        return (string) $valor;
     }
-    
-    protected function pConsumidorDANFE($x = 0, $y = 0, $h = 0)
+
+    protected static function telefone($fone)
     {
-        $y += 6;
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $w = ($maxW*1);
-        $hLinha = $this->hLinha;
-        $aFontTit = array('font'=>$this->fontePadrao, 'size'=>8, 'style'=>'B');
-        $aFontTex = array('font'=>$this->fontePadrao, 'size'=>8, 'style'=>'');
-        $texto = "CONSUMIDOR";
-        $this->pTextBox($x, $y, $w, $hLinha, $texto, $aFontTit, 'C', 'C', 0, '', false);
-        if (isset($this->dest)) {
-            $considEstrangeiro = !empty($this->dest->getElementsByTagName("idEstrangeiro")->item(0)->nodeValue)
-                    ? $this->dest->getElementsByTagName("idEstrangeiro")->item(0)->nodeValue
-                    : '';
-            $consCPF = !empty($this->dest->getElementsByTagName("CPF")->item(0)->nodeValue)
-                    ? $this->dest->getElementsByTagName("CPF")->item(0)->nodeValue
-                    : '';
-            $consCNPJ = !empty($this->dest->getElementsByTagName("CNPJ")->item(0)->nodeValue)
-                    ? $this->dest->getElementsByTagName("CNPJ")->item(0)->nodeValue
-                    : '';
-            $cDest = $consCPF.$consCNPJ.$considEstrangeiro; //documentos do consumidor
-            $enderDest = $this->dest->getElementsByTagName("enderDest")->item(0);
-            $consNome = $this->getTagValue($this->dest, "xNome");
-            $consLgr = $this->getTagValue($enderDest, "xLgr");
-            $consNro = $this->getTagValue($enderDest, "nro");
-            $consCpl = $this->getTagValue($enderDest, "xCpl", " - ");
-            $consBairro = $this->getTagValue($enderDest, "xBairro");
-            $consCEP = $this->pFormat($this->getTagValue($enderDest, "CEP"));
-            $consMun = $this->getTagValue($enderDest, "xMun");
-            $consUF = $this->getTagValue($enderDest, "UF");
-            $considEstrangeiro = $this->getTagValue($this->dest, "idEstrangeiro");
-            $consCPF = $this->getTagValue($this->dest, "CPF");
-            $consCNPJ = $this->getTagValue($this->dest, "CNPJ");
-            $consDoc = "";
-            if (!empty($consCNPJ)) {
-                $consDoc = "CNPJ: $consCNPJ";
-            } elseif (!empty($consCPF)) {
-                $consDoc = "CPF: $consCPF";
-            } elseif (!empty($considEstrangeiro)) {
-                $consDoc = "id: $considEstrangeiro";
+        $f = preg_replace('/\D/', '', (string) $fone);
+        if (strlen($f) === 11) {
+            return '(' . substr($f, 0, 2) . ') ' . substr($f, 2, 5) . '-' . substr($f, 7);
+        }
+        if (strlen($f) === 10) {
+            return '(' . substr($f, 0, 2) . ') ' . substr($f, 2, 4) . '-' . substr($f, 6);
+        }
+        return (string) $fone;
+    }
+
+    protected function endereco($ender)
+    {
+        if (empty($ender)) {
+            return '';
+        }
+        $lgr = $this->getTagValue($ender, 'xLgr');
+        $nro = $this->getTagValue($ender, 'nro');
+        $cpl = $this->getTagValue($ender, 'xCpl');
+        $bairro = $this->getTagValue($ender, 'xBairro');
+        $mun = $this->getTagValue($ender, 'xMun');
+        $uf = $this->getTagValue($ender, 'UF');
+        $cep = preg_replace('/\D/', '', $this->getTagValue($ender, 'CEP'));
+        $partes = [];
+        $rua = trim($lgr . ($nro !== '' ? ', ' . $nro : ''));
+        if ($rua !== '') {
+            $partes[] = $rua;
+        }
+        foreach ([$cpl, $bairro] as $p) {
+            if ($p !== '') {
+                $partes[] = $p;
             }
-            $consEnd = "";
-            if (!empty($consLgr)) {
-                $consEnd = $consLgr
-                    . ","
-                    . $consNro
-                    . " "
-                    . $consCpl
-                    . ","
-                    . $consBairro
-                    . ". CEP:"
-                    . $consCEP
-                    . ". "
-                    . $consMun
-                    . "-"
-                    . $consUF;
+        }
+        $cidade = trim($mun . ($uf !== '' ? '/' . $uf : ''), '/');
+        if ($cidade !== '') {
+            $partes[] = $cidade;
+        }
+        if (strlen($cep) === 8) {
+            $partes[] = 'CEP ' . substr($cep, 0, 5) . '-' . substr($cep, 5);
+        }
+        return implode(' - ', $partes);
+    }
+
+    /** Divisão I — emitente (CNPJ ou CPF, nome, endereço) e título do documento. */
+    protected function blocoEmitente()
+    {
+        $nome = $this->getTagValue($this->emit, 'xNome');
+        $cnpj = $this->getTagValue($this->emit, 'CNPJ');
+        $cpf = $this->getTagValue($this->emit, 'CPF');
+        $doc = $cnpj !== '' ? 'CNPJ: ' . $this->documento($cnpj) : ($cpf !== '' ? 'CPF: ' . $this->documento($cpf) : '');
+        $ie = $this->getTagValue($this->emit, 'IE');
+        $im = $this->getTagValue($this->emit, 'IM');
+        $linhaDoc = trim($doc . ($ie !== '' ? '  IE: ' . $ie : '') . ($im !== '' ? '  IM: ' . $im : ''));
+        $ender = $this->endereco($this->enderEmit);
+        $fone = $this->getTagValue($this->enderEmit, 'fone');
+        if ($fone !== '') {
+            $ender .= ' - Fone: ' . self::telefone($fone);
+        }
+        $xTexto = 0;
+        $wTexto = $this->wPrint;
+        $yIni = $this->yAtual;
+        $temLogo = is_string($this->logomarca) && $this->logomarca !== '' && is_file($this->logomarca);
+        if ($temLogo) {
+            $xTexto = 20;
+            $wTexto = $this->wPrint - 20;
+        }
+        $this->linha([[$xTexto, $wTexto, $nome, $this->fonte(8, 'B'), $temLogo ? 'L' : 'C']]);
+        $this->linha([[$xTexto, $wTexto, $linhaDoc, $this->fonte(7), $temLogo ? 'L' : 'C']]);
+        $this->linha([[$xTexto, $wTexto, $ender, $this->fonte(7), $temLogo ? 'L' : 'C']]);
+        if ($temLogo) {
+            if (!$this->medindo) {
+                // logo dentro de 18 x 18 mm, sem distorcer; imagem que o FPDF não lê
+                // (ex.: PNG com canal alfa) fica de fora em vez de derrubar o PDF
+                $dim = @getimagesize($this->logomarca);
+                $wl = 18;
+                $hl = 18;
+                if (!empty($dim[0]) && !empty($dim[1])) {
+                    $esc = min(18 / $dim[0], 18 / $dim[1]);
+                    $wl = $dim[0] * $esc;
+                    $hl = $dim[1] * $esc;
+                }
+                try {
+                    $this->pdf->image($this->logomarca, $this->margem + (18 - $wl) / 2, $yIni + (18 - $hl) / 2, $wl, $hl);
+                } catch (\Exception $e) {
+                    // sem logo
+                }
             }
-            $yTex1 = $y + $hLinha;
-            $texto = $consNome;
-            if (!empty($consDoc)) {
-                $texto .= " - ". $consDoc . "\n" . $consEnd;
-                $this->pTextBox($x, $yTex1, $w, $hLinha*3, $texto, $aFontTex, 'C', 'C', 0, '', false);
+            $this->yAtual = max($this->yAtual, $yIni + 18.5);
+        }
+        $this->yAtual += 0.8;
+        $this->texto('DANFE NFC-e - Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica', 7.5, 'B');
+        $this->texto('NFC-e não permite aproveitamento de crédito de ICMS', 6.5);
+        $this->separador();
+    }
+
+    /** Cancelada/denegada (logo abaixo do cabeçalho) e aviso de contingência (manual 3.1.8). */
+    protected function blocoSituacao()
+    {
+        $algo = false;
+        if ($this->situacao !== null) {
+            $this->texto($this->situacao[0], 12, 'B', 'C', 0.5);
+            $this->texto($this->situacao[1], 7);
+            $algo = true;
+        }
+        if ($this->tpEmis == '9') {
+            $this->textoContingencia();
+            $algo = true;
+        }
+        if ($algo) {
+            $this->separador();
+        }
+    }
+
+    protected function textoContingencia()
+    {
+        $this->texto('EMITIDA EM CONTINGÊNCIA', 9, 'B', 'C', 0.2);
+        if (empty($this->infProt)) {
+            $this->texto('Pendente de autorização', 8, 'I');
+        }
+    }
+
+    /** Divisão II — itens: código, descrição, qtde, un, valor unitário e total (+ infAdProd). */
+    protected function blocoItens()
+    {
+        $w = $this->wPrint;
+        $wTot = 24;
+        $cabecalho = function () use ($w, $wTot) {
+            $this->texto('CÓDIGO  DESCRIÇÃO', 7, 'B', 'L', 0);
+            $this->linha([
+                [3, $w - $wTot - 3, 'QTDE  UN  x  VL UNIT R$', $this->fonte(7, 'B'), 'L'],
+                [$w - $wTot, $wTot, 'VL TOTAL R$', $this->fonte(7, 'B'), 'R'],
+            ], 0.6);
+        };
+        $cabecalho();
+        $fItem = $this->fonte(7);
+        $fInf = $this->fonte(6);
+        foreach ($this->det as $det) {
+            $prod = $det->getElementsByTagName('prod')->item(0);
+            $desc = trim($this->getTagValue($prod, 'cProd') . '  ' . $this->getTagValue($prod, 'xProd'));
+            $qtd = self::numero($this->getTagValue($prod, 'qCom'), 2) . '  ' . $this->getTagValue($prod, 'uCom')
+                . '  x  ' . self::numero($this->getTagValue($prod, 'vUnCom'), 2);
+            $tot = self::numero($this->getTagValue($prod, 'vProd'), 2);
+            $infAdProd = '';
+            foreach ($det->childNodes as $filho) {
+                if ($filho->nodeName === 'infAdProd') {
+                    $infAdProd = trim($filho->nodeValue);
+                }
             }
+            // o item inteiro na mesma página
+            $hItem = $this->alturaTexto($desc, $w - 0.6, $fItem)
+                + max($this->alturaTexto($qtd, $w - $wTot - 3.6, $fItem), $this->alturaTexto($tot, $wTot - 0.6, $fItem))
+                + ($infAdProd !== '' ? $this->alturaTexto($infAdProd, $w - 3.6, $fInf) : 0) + 1.5;
+            if ($this->garante($hItem)) {
+                $cabecalho();
+            }
+            $this->linha([[0, $w, $desc, $fItem, 'L']], 0);
+            $this->linha([
+                [3, $w - $wTot - 3, $qtd, $fItem, 'L'],
+                [$w - $wTot, $wTot, $tot, $fItem, 'R'],
+            ], 0.2);
+            if ($infAdProd !== '') {
+                $this->linha([[3, $w - 3, $infAdProd, $fInf, 'L']], 0.2);
+            }
+            $this->yAtual += 0.5;
+        }
+        $this->separador();
+    }
+
+    /** Divisão III — totais, acréscimos/desconto (só se houver), pagamentos e troco. */
+    protected function blocoTotais()
+    {
+        $w = $this->wPrint;
+        $wVal = 30;
+        $f = $this->fonte(7);
+        $fB = $this->fonte(7, 'B');
+        $par = function ($rotulo, $valor, $fonte) use ($w, $wVal) {
+            $this->linha([[0, $w - $wVal, $rotulo, $fonte, 'L'], [$w - $wVal, $wVal, $valor, $fonte, 'R']], 0.2);
+        };
+        $v = function ($tag) {
+            return $this->getTagValue($this->ICMSTot, $tag);
+        };
+        $par('Qtde. total de itens', (string) $this->det->length, $f);
+        $par('Valor total R$', self::numero($v('vProd')), $f);
+        $ajuste = false;
+        foreach (['vDesc' => 'Desconto R$', 'vFrete' => 'Frete R$', 'vSeg' => 'Seguro R$', 'vOutro' => 'Outras despesas R$'] as $tag => $rotulo) {
+            if ((float) $v($tag) > 0) {
+                $par($rotulo, ($tag === 'vDesc' ? '-' : '') . self::numero($v($tag)), $f);
+                $ajuste = true;
+            }
+        }
+        if ($ajuste) {
+            $par('Valor a pagar R$', self::numero($v('vNF')), $fB);
+        }
+        $this->yAtual += 0.8;
+        $par('FORMA DE PAGAMENTO', 'VALOR PAGO R$', $fB);
+        foreach ($this->pag as $pag) {
+            $nome = $this->tipoPag($this->getTagValue($pag, 'tPag'));
+            $xPag = $this->getTagValue($pag, 'xPag');
+            if ($xPag !== '') {
+                $nome .= ' - ' . $xPag;
+            }
+            $par($nome, self::numero($this->getTagValue($pag, 'vPag')), $f);
+        }
+        if ($this->vTroco !== null && $this->vTroco !== '') {
+            $par('Troco R$', self::numero($this->vTroco), $f);
+        }
+        $vTotTrib = $v('vTotTrib');
+        if ((float) $vTotTrib > 0) {
+            $this->yAtual += 0.8;
+            $par('Informação dos Tributos Totais Incidentes (Lei Federal 12.741/2012) R$', self::numero($vTotTrib), $f);
+        }
+        $this->separador();
+    }
+
+    /**
+     * Divisão VIII — Área de Mensagem Fiscal: homologação (obrigatório), infAdFisco e
+     * xMsg do protocolo (manual 3.1.8). Só aparece se houver o que mostrar.
+     */
+    protected function blocoMensagemFiscal()
+    {
+        $msgs = [];
+        if ($this->tpAmb == '2') {
+            $msgs[] = ['EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO – SEM VALOR FISCAL', 8, 'B'];
+        }
+        $fisco = $this->getTagValue($this->infAdic, 'infAdFisco');
+        if ($fisco !== '') {
+            $msgs[] = [$fisco, 7, ''];
+        }
+        $xMsg = $this->getTagValue($this->infProt, 'xMsg');
+        if ($xMsg !== '') {
+            $msgs[] = [$xMsg, 7, ''];
+        }
+        if (empty($msgs)) {
+            return;
+        }
+        $this->texto('ÁREA DE MENSAGEM FISCAL', 7, 'B');
+        foreach ($msgs as $m) {
+            $this->texto($m[0], $m[1], $m[2]);
+        }
+        $this->separador();
+    }
+
+    /** Divisão IV — URL de consulta (tag urlChave do XML) e chave em 11 blocos de 4. */
+    protected function blocoConsultaChave()
+    {
+        $url = $this->urlChave;
+        if ($url === '') {
+            $cUF = $this->getTagValue($this->ide, 'cUF');
+            $uf = $this->UFSigla[$cUF] ?? '';
+            $url = $this->urlConsulta[$this->tpAmb][$uf] ?? '';
+        }
+        $this->texto('Consulte pela Chave de Acesso em', 7, 'B', 'C', 0);
+        if ($url !== '') {
+            $this->texto($url, 7);
+        }
+        $chave = str_replace('NFe', '', $this->infNFe->getAttribute('Id'));
+        $this->texto(trim(implode(' ', str_split($chave, 4))), 8, 'B', 'C', 0.5);
+        $this->separador();
+    }
+
+    /** Divisão VI — consumidor (CNPJ, CPF ou Id. Estrangeiro, nome e endereço) ou não identificado. */
+    protected function blocoConsumidor()
+    {
+        $doc = '';
+        $nome = '';
+        $ender = '';
+        if (!empty($this->dest)) {
+            $cnpj = $this->getTagValue($this->dest, 'CNPJ');
+            $cpf = $this->getTagValue($this->dest, 'CPF');
+            $estr = $this->getTagValue($this->dest, 'idEstrangeiro');
+            if ($cnpj !== '') {
+                $doc = 'CONSUMIDOR CNPJ: ' . $this->documento($cnpj);
+            } elseif ($cpf !== '') {
+                $doc = 'CONSUMIDOR CPF: ' . $this->documento($cpf);
+            } elseif ($estr !== '') {
+                $doc = 'CONSUMIDOR Id. Estrangeiro: ' . $estr;
+            }
+            $nome = $this->getTagValue($this->dest, 'xNome');
+            $ender = $this->endereco($this->dest->getElementsByTagName('enderDest')->item(0));
+        }
+        if ($doc === '' && $nome === '' && $ender === '') {
+            $this->texto('CONSUMIDOR NÃO IDENTIFICADO', 7.5, 'B');
         } else {
-            $yTex1 = $y + $hLinha;
-            $texto = "Consumidor não identificado";
-            $this->pTextBox($x, $yTex1, $w, $hLinha, $texto, $aFontTex, 'C', 'C', 0, '', false);
+            $this->texto($doc !== '' ? $doc : 'CONSUMIDOR', 7.5, 'B');
+            $this->texto($nome, 7);
+            $this->texto($ender, 7);
+        }
+        $this->separador();
+    }
+
+    /** Divisão VII — número, série, emissão, via e protocolo de autorização (suprimido sem protocolo). */
+    protected function blocoIdentificacao()
+    {
+        $nNF = $this->getTagValue($this->ide, 'nNF');
+        $serie = str_pad($this->getTagValue($this->ide, 'serie'), 3, '0', STR_PAD_LEFT);
+        $emissao = self::dataHora($this->getTagValue($this->ide, 'dhEmi'));
+        $this->texto("NFC-e nº $nNF  Série $serie  $emissao", 8, 'B', 'C', 0.2);
+        $this->texto($this->via, 8, 'B');
+        $nProt = $this->getTagValue($this->infProt, 'nProt');
+        if ($nProt !== '') {
+            $this->texto('Protocolo de autorização: ' . $nProt, 7.5, '', 'C', 0.2);
+            $dh = self::dataHora($this->getTagValue($this->infProt, 'dhRecbto'));
+            if ($dh !== '') {
+                $this->texto('Data de autorização: ' . $dh, 7.5);
+            }
+        }
+        if ($this->tpEmis == '9') {
+            $this->yAtual += 0.5;
+            $this->textoContingencia();
         }
     }
-    
-    protected function pQRDANFE($x = 0, $y = 0, $h = 0)
+
+    /**
+     * Divisão V — QR Code (conteúdo exato da tag qrCode, 50 x 50 mm, mínimo do manual 25 mm).
+     *
+     * XML sem infNFeSupl/qrCode (ou com a tag vazia): o DANFE sai sem QR Code em vez de
+     * falhar inteiro (o tc-lib-barcode lança "Empty input" com conteúdo vazio). O QR não
+     * pode ser montado a partir da chave: a versão 2 exige o hash com o CSC do contribuinte
+     * e a versão 3 a assinatura dos parâmetros (manual v6.0, itens 4.3 e 4.4) — dados que
+     * não estão no XML. A consulta continua possível pela chave (Divisão IV).
+     */
+    protected function blocoQRCode()
     {
-        $y += 6;
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $w = ($maxW*1)+4;
-        $hLinha = $this->hLinha;
-        $hBoxLinha = $this->hBoxLinha;
-        $aFontTit = array('font'=>$this->fontePadrao, 'size'=>8, 'style'=>'B');
-        $aFontTex = array('font'=>$this->fontePadrao, 'size'=>8, 'style'=>'');
-        $dhRecbto = '';
-        $nProt = '';
-        if (isset($this->nfeProc)) {
-            $nProt = $this->getTagValue($this->nfeProc, "nProt");
-            $dhRecbto  = $this->getTagValue($this->nfeProc, "dhRecbto");
+        if ($this->pngQRCode === null) {
+            // gerado no 1º passo (medição), para os dois passos decidirem igual
+            $this->pngQRCode = false;
+            if ((string) $this->qrCode !== '') {
+                try {
+                    $barcode = new Barcode();
+                    $bobj = $barcode->getBarcodeObj(
+                        'QRCODE,M',
+                        $this->qrCode,
+                        -4,
+                        -4,
+                        'black',
+                        array(-2, -2, -2, -2)
+                    )->setBackgroundColor('white');
+                    $this->pngQRCode = $bobj->getPngData();
+                } catch (\Exception $e) {
+                    $this->pngQRCode = false; // conteúdo que não cabe num QR Code: sem imagem
+                }
+            }
         }
-        $barcode = new Barcode();
-        $bobj = $barcode->getBarcodeObj(
-            'QRCODE,M',
-            $this->qrCode,
-            -4,
-            -4,
-            'black',
-            array(-2, -2, -2, -2)
-        )->setBackgroundColor('white');
-        $qrcode = $bobj->getPngData();
-        $wQr = 50;
-        $hQr = 50;
-        $yQr = ($y+$margemInterna);
-        $xQr = ($w/2) - ($wQr/2);
-        // prepare a base64 encoded "data url"
-        $pic = 'data://text/plain;base64,' . base64_encode($qrcode);
-        $info = getimagesize($pic);
-        $this->pdf->image($pic, $xQr, $yQr, $wQr, $hQr, 'PNG');
-        $dt = new DateTime($dhRecbto);
-        $yQr = ($yQr+$hQr+$margemInterna);
-        $this->pTextBox($x, $yQr, $w-4, $hBoxLinha, "Protocolo de Autorização: " . $nProt . "\n"
-            . $dt->format('d/m/Y H:i:s'), $aFontTex, 'C', 'C', 0, '', false);
+        if ($this->pngQRCode === false) {
+            return;
+        }
+        $lado = 50;
+        $this->yAtual += 1;
+        $this->garante($lado + 1);
+        if (!$this->medindo) {
+            $pic = 'data://text/plain;base64,' . base64_encode($this->pngQRCode);
+            $this->pdf->image($pic, (80 - $lado) / 2, $this->yAtual, $lado, $lado, 'PNG');
+        }
+        $this->yAtual += $lado + 1;
     }
-   
-    protected function pInfAdic($x = 0, $y = 0, $h = 0)
+
+    /** Divisão IX — mensagem de interesse do contribuinte (infCpl). */
+    protected function blocoInfContribuinte()
     {
-        $y += 17;
-        $margemInterna = $this->margemInterna;
-        $maxW = $this->wPrint;
-        $w = ($maxW * 1);
-        $hLinha = $this->hLinha;
-        $aFontTit = array('font' => $this->fontePadrao, 'size' => 8, 'style' => 'B');
-        $aFontTex = array('font' => $this->fontePadrao, 'size' => 8, 'style' => '');
-        // seta o textbox do titulo
-        $texto = "INFORMAÇÃO ADICIONAL";
-        $heigthText = $this->pTextBox($x, $y, $w, $hLinha, $texto, $aFontTit, 'C', 'C', 0, '', false);
-                
-        // seta o textbox do texto adicional
-        $this->pTextBox($x, $y+3, $w-2, $hLinha-3, $this->textoAdic, $aFontTex, 'T', 'L', 0, '', false);
+        if ($this->textoAdic === '') {
+            return;
+        }
+        $this->separador();
+        $this->texto('INFORMAÇÕES DE INTERESSE DO CONTRIBUINTE', 7, 'B');
+        $this->texto($this->textoAdic, 7, '', 'L');
     }
-    
+
+    protected function textoInfCpl()
+    {
+        $infCpl = $this->getTagValue($this->infAdic, 'infCpl');
+        if ($infCpl === '') {
+            return '';
+        }
+        // ";" é a quebra de linha convencional do infCpl (mesma regra do DANFE A4)
+        return str_replace(';', "\n", trim($this->pAnfavea($infCpl)));
+    }
+
+    /**
+     * Cancelada (protocolo 101/135/151/155 ou evento 110111/110112 homologado no
+     * nfeProc) ou denegada (110/301/302/303).
+     *
+     * @return array{0:string,1:string}|null
+     */
+    protected function situacaoNota()
+    {
+        $cStat = $this->getTagValue($this->infProt, 'cStat');
+        if (in_array($cStat, ['101', '135', '151', '155'], true)) {
+            return ['NFC-e CANCELADA', ''];
+        }
+        if (in_array($cStat, ['110', '301', '302', '303'], true)) {
+            return ['NFC-e DENEGADA', 'Uso denegado (cStat ' . $cStat . ')'];
+        }
+        if (empty($this->dom)) {
+            return null;
+        }
+        $chave = str_replace('NFe', '', $this->infNFe->getAttribute('Id'));
+        foreach ($this->dom->getElementsByTagName('retEvento') as $ret) {
+            $inf = $ret->getElementsByTagName('infEvento')->item(0);
+            $tp = $this->getTagValue($inf, 'tpEvento');
+            $st = $this->getTagValue($inf, 'cStat');
+            $ch = $this->getTagValue($inf, 'chNFe');
+            if (in_array($tp, ['110111', '110112'], true) && in_array($st, ['101', '135', '151', '155'], true)
+                && ($ch === '' || $ch === $chave)
+            ) {
+                $sub = trim('Protocolo de cancelamento: ' . $this->getTagValue($inf, 'nProt') . '  '
+                    . self::dataHora($this->getTagValue($inf, 'dhRegEvento')));
+                return ['NFC-e CANCELADA', $sub];
+            }
+        }
+        return null;
+    }
+
+    /** Nome do meio de pagamento (tPag, MOC 4.00 + NT 2020.006/2023.004); código desconhecido sai como código. */
+    protected function tipoPag($tPag)
+    {
+        $nomes = [
+            '01' => 'Dinheiro',
+            '02' => 'Cheque',
+            '03' => 'Cartão de Crédito',
+            '04' => 'Cartão de Débito',
+            '05' => 'Crédito Loja',
+            '10' => 'Vale Alimentação',
+            '11' => 'Vale Refeição',
+            '12' => 'Vale Presente',
+            '13' => 'Vale Combustível',
+            '14' => 'Duplicata Mercantil',
+            '15' => 'Boleto Bancário',
+            '16' => 'Depósito Bancário',
+            '17' => 'Pagamento Instantâneo (PIX)',
+            '18' => 'Transferência bancária, Carteira Digital',
+            '19' => 'Programa de fidelidade, Cashback, Crédito Virtual',
+            '20' => 'Pagamento Instantâneo (PIX) - Estático',
+            '21' => 'Crédito em Loja',
+            '22' => 'Pagamento Eletrônico não Informado',
+            '90' => 'Sem Pagamento',
+            '99' => 'Outros',
+        ];
+        $tPag = trim((string) $tPag);
+        return $nomes[$tPag] ?? ('Pagamento (código ' . $tPag . ')');
+    }
+
     /**
      * printDANFE
      * Esta função envia a DANFE em PDF criada para o dispositivo informado.
@@ -974,7 +998,7 @@ class Danfce extends Common
     {
         return $this->pdf->getPdf();
     }
-    
+
     /**
      * anfavea
      * Função para transformar o campo cdata do padrão ANFAVEA para
@@ -987,6 +1011,12 @@ class Danfce extends Common
     {
         if ($cdata == '') {
             return '';
+        }
+        // PATCH 13 (= Patch 11 do Danfe.php): só é Anfavea se tiver as tags dela com
+        // atributos. Antes, qualquer "<" no infCpl ("<br>", "PRECO < 10", URL entre
+        // "<>") fazia descartar tudo do primeiro "<" ao último ">".
+        if (!preg_match('/<\s*(id|div|entg|dest|ctl|ref)\b[^>]*=/i', $cdata)) {
+            return $cdata;
         }
         //remove qualquer texto antes ou depois da tag CDATA
         $cdata = str_replace('<![CDATA[', '<CDATA>', $cdata);
@@ -1136,7 +1166,7 @@ class Danfce extends Common
         $hex = "";
         $iCount = 0;
         do {
-            $hex .= sprintf("%02x", ord($str{$iCount}));
+            $hex .= sprintf("%02x", ord($str[$iCount]));
             $iCount++;
         } while ($iCount < strlen($str));
         return $hex;
@@ -1181,7 +1211,7 @@ class Danfce extends Common
         $bin = "";
         $iCount = 0;
         do {
-            $bin .= chr(hexdec($str{$iCount}.$str{($iCount + 1)}));
+            $bin .= chr(hexdec($str[$iCount].$str[($iCount + 1)]));
             $iCount += 2;
         } while ($iCount < strlen($str));
         return $bin;
@@ -1225,28 +1255,14 @@ class Danfce extends Common
         return $seq;
     }
     
+
     protected function pNotaCancelada()
     {
-        if (!isset($this->nfeProc)) {
-            return false;
-        }
-        $cStat = $this->getTagValue($this->nfeProc, "cStat");
-        return $cStat == '101' ||
-                $cStat == '151' ||
-                $cStat == '135' ||
-                $cStat == '155';
+        return $this->situacao !== null && strpos($this->situacao[0], 'CANCELADA') !== false;
     }
 
     protected function pNotaDenegada()
     {
-        if (!isset($this->nfeProc)) {
-            return false;
-        }
-        //NÃO ERA NECESSÁRIO ESSA FUNÇÃO POIS SÓ SE USA
-        //1 VEZ NO ARQUIVO INTEIRO
-        $cStat = $this->getTagValue($this->nfeProc, "cStat");
-        return $cStat == '110' ||
-               $cStat == '301' ||
-               $cStat == '302';
+        return $this->situacao !== null && strpos($this->situacao[0], 'DENEGADA') !== false;
     }
 }

@@ -22,6 +22,8 @@ use NFePHP\DA\Legacy\Common;
 
 class Dacanc extends Common
 {
+    use \NFePHP\DA\Common\XmlSanitizerTrait;
+
     protected $logoAlign = 'C';
     protected $yDados = 0;
     protected $debugMode = 0;
@@ -116,8 +118,19 @@ class Dacanc extends Common
         } else {
             $docXML = file_get_contents($docXML);
         }
+        // PATCH consultadanfe: blindagem 2-camadas contra XMLs mal-formados
+        $docXML = self::sanitizeXmlFreeText($docXML);
         $this->dom = new Dom();
-        $this->dom->loadXML($docXML);
+        $useInternalErrors = libxml_use_internal_errors(true);
+        $loaded = $this->dom->loadXML($docXML);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($useInternalErrors);
+        if (!$loaded || !empty($errors)) {
+            $docXML = self::aggressiveEscape($docXML);
+            $this->dom = new Dom();
+            $this->dom->loadXML($docXML);
+        }
         $this->infCanc = $this->dom->getElementsByTagName("infCanc")->item(0);
         $this->retCancCTe = $this->dom->getElementsByTagName("retCancCTe")->item(0);
         if (empty($this->infCanc) && empty($this->retCancCTe)) {

@@ -11,8 +11,8 @@ class Pdf extends Fpdf
     private $aSet="";                                          // grupo A do conjunto de de caracteres legiveis
     private $bSet="";                                          // grupo B do conjunto de caracteres legiveis
     private $cSet="";                                          // grupo C do conjunto de caracteres legiveis
-    private $setFrom;                                          // converter de
-    private $setTo;                                            // converter para
+    private $setFrom = ['A' => '', 'B' => '', 'C' => ''];      // converter de (inicializado p/ PHP 8 type-strict)
+    private $setTo = ['A' => '', 'B' => '', 'C' => ''];        // converter para (inicializado p/ PHP 8 type-strict)
     private $jStart = array("A"=>103, "B"=>104, "C"=>105);     // Caracteres de seleção do grupo 128
     private $jSwap = array("A"=>101, "B"=>100, "C"=>99);       // Caracteres de troca de grupo
 
@@ -596,6 +596,10 @@ class Pdf extends Fpdf
                             $count++;
                         }
                     }
+                    // PATCH 12: separa a palavra cortada da seguinte ("AAAA; onde",
+                    // não "AAAA;onde")
+                    $width += $space;
+                    $text .= ' ';
                 } elseif ($width + $wordwidth <= $maxwidth) {
                     $width += $wordwidth + $space;
                     $text .= $word.' ';

@@ -22,6 +22,8 @@ use NFePHP\DA\Legacy\Common;
 
 class Daevento extends Common
 {
+    use \NFePHP\DA\Common\XmlSanitizerTrait;
+
     public $chNFe;
     
     protected $logoAlign = 'C';
@@ -126,22 +128,43 @@ class Daevento extends Common
         } else {
             $docXML = file_get_contents($docXML);
         }
+        // PATCH consultadanfe: blindagem 2-camadas contra XMLs mal-formados
+        $docXML = self::sanitizeXmlFreeText($docXML);
         $this->dom = new Dom();
-        $this->dom->loadXML($docXML);
+        $useInternalErrors = libxml_use_internal_errors(true);
+        $loaded = $this->dom->loadXML($docXML);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($useInternalErrors);
+        if (!$loaded || !empty($errors)) {
+            $docXML = self::aggressiveEscape($docXML);
+            $this->dom = new Dom();
+            $this->dom->loadXML($docXML);
+        }
         $this->procEventoNFe = $this->dom->getElementsByTagName("procEventoNFe")->item(0);
         $this->evento = $this->dom->getElementsByTagName("evento")->item(0);
         $this->infEvento = $this->evento->getElementsByTagName("infEvento")->item(0);
         $this->retEvento = $this->dom->getElementsByTagName("retEvento")->item(0);
-        $this->rinfEvento = $this->retEvento->getElementsByTagName("infEvento")->item(0);
+        // PATCH consultadanfe (Patch 15): XML só com o <evento> (sem retEvento) derrubava
+        // a geração; agora sai com "SEM REGISTRO NA SEFAZ" no lugar do protocolo.
+        $this->rinfEvento = $this->retEvento ? $this->retEvento->getElementsByTagName("infEvento")->item(0) : null;
+        if (!$this->rinfEvento) {
+            $this->rinfEvento = $this->dom->createElement("infEvento");
+        }
         $this->tpEvento = $this->infEvento->getElementsByTagName("tpEvento")->item(0)->nodeValue;
         if (!in_array($this->tpEvento, ['110110','110111'])) {
-            $this->errMsg = 'Evento não implementado ' . $tpEvento . ' !!';
+            // PATCH consultadanfe (Patch 15): $tpEvento não existia neste escopo
+            $this->errMsg = 'Evento não implementado ' . $this->tpEvento . ' !!';
             $this->errStatus = true;
             return false;
         }
         $this->id = str_replace('ID', '', $this->infEvento->getAttribute("Id"));
         $this->chNFe = $this->infEvento->getElementsByTagName("chNFe")->item(0)->nodeValue;
-        $this->aEnd['CNPJ'] = $this->infEvento->getElementsByTagName("CNPJ")->item(0)->nodeValue;
+        // PATCH consultadanfe (Patch 15): autor pode ser CPF; os dois vão para o quadro do emitente
+        $autorCnpj = $this->infEvento->getElementsByTagName("CNPJ")->item(0);
+        $autorCpf = $this->infEvento->getElementsByTagName("CPF")->item(0);
+        $this->aEnd['CNPJ'] = $autorCnpj ? $autorCnpj->nodeValue : '';
+        $this->aEnd['CPF'] = $autorCpf ? $autorCpf->nodeValue : '';
         $this->tpAmb = $this->infEvento->getElementsByTagName("tpAmb")->item(0)->nodeValue;
         $this->cOrgao = $this->infEvento->getElementsByTagName("cOrgao")->item(0)->nodeValue;
         $this->xCorrecao = $this->infEvento->getElementsByTagName("xCorrecao")->item(0);
@@ -151,16 +174,16 @@ class Daevento extends Common
         $this->xJust = $this->infEvento->getElementsByTagName("xJust")->item(0);
         $this->xJust = (empty($this->xJust) ? '' : $this->xJust->nodeValue);
         $this->dhEvento = $this->infEvento->getElementsByTagName("dhEvento")->item(0)->nodeValue;
-        $this->cStat = $this->rinfEvento->getElementsByTagName("cStat")->item(0)->nodeValue;
-        $this->xMotivo = $this->rinfEvento->getElementsByTagName("xMotivo")->item(0)->nodeValue;
-        $this->CNPJDest = !empty($this->rinfEvento->getElementsByTagName("CNPJDest")->item(0)->nodeValue) ?
+        $this->cStat = $this->rinfEvento->getElementsByTagName("cStat")->item(0)?->nodeValue ?? '';
+        $this->xMotivo = $this->rinfEvento->getElementsByTagName("xMotivo")->item(0)?->nodeValue ?? '';
+        $this->CNPJDest = !empty($this->rinfEvento->getElementsByTagName("CNPJDest")->item(0)?->nodeValue) ?
             $this->rinfEvento->getElementsByTagName("CNPJDest")->item(0)->nodeValue :
             '';
-        $this->CPFDest = !empty($this->rinfEvento->getElementsByTagName("CPFDest")->item(0)->nodeValue) ?
+        $this->CPFDest = !empty($this->rinfEvento->getElementsByTagName("CPFDest")->item(0)?->nodeValue) ?
             $this->rinfEvento->getElementsByTagName("CPFDest")->item(0)->nodeValue :
             '';
-        $this->dhRegEvento = $this->rinfEvento->getElementsByTagName("dhRegEvento")->item(0)->nodeValue;
-        $this->nProt = $this->rinfEvento->getElementsByTagName("nProt")->item(0)->nodeValue;
+        $this->dhRegEvento = $this->rinfEvento->getElementsByTagName("dhRegEvento")->item(0)?->nodeValue ?? '';
+        $this->nProt = $this->rinfEvento->getElementsByTagName("nProt")->item(0)?->nodeValue ?? '';
     }
 
     /**
@@ -336,6 +359,13 @@ class Daevento extends Common
             'style' => 'B'
         );
         $texto = (isset($this->aEnd['razao']) ? $this->aEnd['razao'] : '');
+        // PATCH consultadanfe (Patch 15): o XML do evento só traz o CNPJ/CPF do autor;
+        // sem razão social o quadro saía vazio. Mostra o documento (alfanumérico ok).
+        if ($texto === '' && !empty($this->aEnd['CNPJ'])) {
+            $texto = 'CNPJ: ' . $this->pFormat($this->aEnd['CNPJ'], "##.###.###/####-##");
+        } elseif ($texto === '' && !empty($this->aEnd['CPF'])) {
+            $texto = 'CPF: ' . $this->pFormat($this->aEnd['CPF'], "###.###.###-##");
+        }
         $this->pTextBox($x1, $y1, $tw, 8, $texto, $aFont, 'T', 'C', 0, '');
         // endereço
         $y1 = $y1 + 6;
@@ -416,7 +446,12 @@ class Daevento extends Common
         $texto = 'Criado em : ' . date('d/m/Y   H:i:s', $tsHora);
         $this->pTextBox($x, $y + 20, $w2, 8, $texto, $aFont, 'T', 'L', 0, '');
         $tsHora = $this->pConvertTime($this->dhRegEvento);
-        $texto = 'Prococolo: ' . $this->nProt . '  -  Registrado na SEFAZ em: ' . date('d/m/Y   H:i:s', $tsHora);
+        $texto = 'Protocolo: ' . $this->nProt . '  -  Registrado na SEFAZ em: ' . date('d/m/Y   H:i:s', $tsHora);
+        if ($this->nProt === '') {
+            // PATCH consultadanfe (Patch 15): sem retEvento não há protocolo nem data de registro
+            // (date() com null imprimia a hora de agora como se fosse o registro).
+            $texto = 'Protocolo: SEM REGISTRO NA SEFAZ (XML sem o retorno do evento)';
+        }
         $this->pTextBox($x, $y + 25, $w2, 8, $texto, $aFont, 'T', 'L', 0, '');
         // ####################################################
         $x = $oldX;
@@ -438,6 +473,9 @@ class Daevento extends Common
         // ############################################
         $x = $oldX;
         $y = $y1;
+        // PATCH consultadanfe (Patch 15): sem CNPJDest/CPFDest $texto ainda era o
+        // parágrafo de abertura, reimpresso em 12 pt negrito por cima do quadro.
+        $texto = '';
         if ($this->CNPJDest != '') {
             $texto = 'CNPJ do Destinatário: ' . $this->pFormat($this->CNPJDest, "##.###.###/####-##");
         }

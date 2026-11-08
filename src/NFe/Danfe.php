@@ -9,6 +9,8 @@ use NFePHP\DA\Legacy\Common;
 
 class Danfe extends Common
 {
+    use \NFePHP\DA\Common\XmlSanitizerTrait;
+
     const FPDF_FONTPATH = 'font/';
     const SIT_CANCELADA = 1;
     const SIT_DENEGADA = 2;
@@ -147,6 +149,25 @@ class Danfe extends Common
      * @var string
      */
     protected $textoAdic = '';
+    /**
+     * PATCH 9 (consultadanfe): alturas do cabeçalho, do quadro de impostos e do
+     * título da grade de itens, em mm. Os padrões são o leiaute clássico;
+     * custom/DanfeRtc (NT 2026.010) aumenta. Mesmo desenho do PR #686 do upstream.
+     * @var int
+     */
+    protected $hCabecalho = 47;
+    protected $hImposto = 18;
+    protected $hCabecalhoItens = 4;
+    /**
+     * PATCH 18 (consultadanfe): índices das duplicatas desenhadas no quadro
+     * FATURA/DUPLICATA (as demais vão para os dados adicionais) e o texto dos
+     * dados adicionais que não coube na folha 1 (sai em folhas de continuação).
+     * @var int[]
+     */
+    protected $dupGrade = [];
+    protected $textoAdicContinuacao = '';
+    /** PATCH 18: nItem => parte da descrição que não coube numa folha */
+    protected $descContinua = [];
     /**
      * Largura
      * @var float
@@ -303,6 +324,12 @@ class Danfe extends Common
      * @var string
      */
     protected $creditos = '';
+    /*
+     * PATCH 19 (fork): propriedades que eram criadas dinamicamente (deprecated no
+     * PHP 8.2). Públicas, como as dinâmicas eram.
+     */
+    public $nfeProc;
+    public $situacao_externa;
 
     /**
      * __construct
@@ -356,8 +383,28 @@ class Danfe extends Common
         }
         //se for passado o xml
         if (! empty($this->xml)) {
+            // PATCH consultadanfe: blindagem 2-camadas contra XMLs mal-formados.
+            // Camada 1: wrap em CDATA todos os 28+ campos de texto livre da NFe.
+            // Camada 2: se loadXML ainda falhar com erro de parse, escapa todos
+            //           os '<' que nao formam tag valida.
+            // Motivo: emissores colocam HTML/JSON/JavaScript cru em campos como
+            // <infCpl>, <xObs>, <xCorrecao> etc, quebrando o parser.
+            $this->xml = self::sanitizeXmlFreeText($this->xml);
+
             $this->dom = new Dom();
-            $this->dom->loadXML($this->xml);
+            // Suprime warnings de parse pra detectar problemas via libxml_get_errors
+            $useInternalErrors = libxml_use_internal_errors(true);
+            $loaded = $this->dom->loadXML($this->xml);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors($useInternalErrors);
+
+            // Se primeira tentativa falhou: aplica fallback agressivo
+            if (!$loaded || !empty($errors)) {
+                $this->xml = self::aggressiveEscape($this->xml);
+                $this->dom = new Dom();
+                $this->dom->loadXML($this->xml);
+            }
             $this->nfeProc    = $this->dom->getElementsByTagName("nfeProc")->item(0);
             $this->infNFe     = $this->dom->getElementsByTagName("infNFe")->item(0);
             $this->ide        = $this->dom->getElementsByTagName("ide")->item(0);
@@ -396,7 +443,7 @@ class Danfe extends Common
     {
         $this->creditos = trim($message);
     }
-    
+
     /**
      * monta
      *
@@ -545,6 +592,27 @@ class Danfe extends Common
             // se não oculpa espaço d+, cada linha comporta até 7 duplicatas.
             $linhasDup = 3;
         }
+        // PATCH 18: o quadro desenha até 4 linhas (7 por linha no retrato, 9 na
+        // paisagem), mas a reserva parava em 3: da 22ª à 28ª duplicata o quadro
+        // invadia os blocos seguintes, e da 29ª em diante sumia. Agora a reserva
+        // cobre as linhas desenhadas e o que não cabe no quadro (ou não cabe na
+        // célula nem com fonte 4,5) vai para os dados adicionais.
+        $textoDupExtra = $this->prepararDuplicatas();
+        // PATCH 18: descrições mais altas que uma folha (ver limitarDescricao())
+        $this->descContinua = array();
+        foreach ($this->det as $itemDet) {
+            $this->pDescricaoProduto($itemDet);
+        }
+        foreach ($this->descContinua as $nItem => $resto) {
+            $textoDupExtra = "ITEM $nItem (CONTINUAÇÃO DA DESCRIÇÃO): " . str_replace("\n", ' ', $resto)
+                . ($textoDupExtra === '' ? '' : "\n" . $textoDupExtra);
+        }
+        if ($this->dup->length > 0) {
+            $porLinha = $this->orientacao == 'P' ? 7 : 9;
+            $linhasGrade = (int) ceil(count($this->dupGrade) / $porLinha);
+            // todas no quadro: reserva antiga (igual à de sempre até 21) ou a real, a maior
+            $linhasDup = count($this->dupGrade) === $this->dup->length ? max($linhasDup, $linhasGrade) : max(1, $linhasGrade);
+        }
         //verifica se será impressa a linha dos serviços ISSQN
         $linhaISSQN = 0;
         if ((isset($this->ISSQNtot)) && ($this->getTagValue($this->ISSQNtot, 'vServ') > 0)) {
@@ -637,11 +705,14 @@ class Danfe extends Common
                     strpos(strtolower(trim($this->textoAdic)), 'imp'));
             $vTotTrib = $this->getTagValue($this->ICMSTot, 'vTotTrib');
             if ($vTotTrib != '' && !$flagVTT) {
-                $this->textoAdic .= "\n Valor Aproximado dos Tributos : R$ " . number_format($vTotTrib, 2, ",", ".");
+                $this->textoAdic .= "\n Valor Aproximado dos Tributos : R$ " . number_format((float)$vTotTrib, 2, ",", ".");
             }
         }
         //fim da alteração NT 2013.003 Lei da Transparência
         $this->textoAdic = str_replace(";", "\n", $this->textoAdic);
+        if ($textoDupExtra !== '') {
+            $this->textoAdic .= ($this->textoAdic === '' ? '' : "\n") . $textoDupExtra;
+        }
         $alinhas = explode("\n", $this->textoAdic);
         $numlinhasdados = 0;
         foreach ($alinhas as $linha) {
@@ -652,14 +723,41 @@ class Danfe extends Common
             $hdadosadic = 10;
         }
         //altura disponivel para os campos da DANFE
-        $hcabecalho = 47;//para cabeçalho
+        $hcabecalho = $this->hCabecalho;//para cabeçalho (PATCH 9)
         $hdestinatario = 25;//para destinatario
         $hduplicatas = 12;//para cada grupo de 7 duplicatas
-        $himposto = 18;// para imposto
+        $himposto = $this->hImposto;// para imposto (PATCH 9)
         $htransporte = 25;// para transporte
         $hissqn = 11;// para issqn
         $hfooter = 5;// para rodape
-        $hCabecItens = 4;//cabeçalho dos itens
+        $hCabecItens = $this->hCabecalhoItens;//cabeçalho dos itens (PATCH 9)
+        // PATCH 18: dados adicionais mais altos que o espaço da folha 1 (infCpl de
+        // 5.000 + infAdFisco de 2.000 caracteres, obsCont...) empurravam o resto
+        // para fora da página (no Clássico, a área de itens ficava com altura
+        // negativa e o quadro era desenhado por cima do cabeçalho). Agora a folha 1
+        // leva o que cabe e o restante sai em folhas de continuação ao final.
+        $this->textoAdicContinuacao = '';
+        $nPagCont = 0;
+        $hAdicMax = $this->hPrint - 10 - ($hcabecalho + $hdestinatario + ($linhasDup * $hduplicatas)
+            + $himposto + $htransporte + ($linhaISSQN * $hissqn) + $hfooter + $hCabecItens
+            + $this->pSizeExtraTextoFatura()) - ($this->orientacao == 'P' ? 24 * $this->qCanhoto : 0);
+        if ($hdadosadic > $hAdicMax) {
+            $hdadosadic = max(10, floor($hAdicMax));
+            $aFontAdic = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
+            $linhaH = 7 / 72 * 25.4;
+            // -1: linha do aviso de continuação
+            $cabem = max(1, (int) floor(($hdadosadic - 3 + 0.3) / $linhaH) - 1);
+            list($primeira, $resto) = $this->dividirTexto($this->textoAdic, $this->wAdic - 2, $cabem, $aFontAdic);
+            if ($resto !== '') {
+                $this->textoAdic = $primeira;
+                $this->textoAdicContinuacao = $resto;
+                $wCont = $this->wPrint - 2;
+                // mesma altura do quadro desenhado: o cabeçalho das folhas seguintes mede hCabecalho - 1
+                $hBoxCont = $this->hPrint - ($hcabecalho - 1) - $hfooter - 4;
+                $porFolha = max(1, (int) floor(($hBoxCont - 3 + 0.3) / $linhaH));
+                $nPagCont = (int) ceil($this->contarLinhas($resto, $wCont, $aFontAdic) / $porFolha);
+            }
+        }
         //alturas disponiveis para os dados
         $hDispo1 = $this->hPrint - 10 - ($hcabecalho +
             $hdestinatario + ($linhasDup * $hduplicatas) + $himposto + $htransporte +
@@ -675,27 +773,40 @@ class Danfe extends Common
         $hDispo2 = $this->hPrint - 10 - ($hcabecalho + $hfooter + $hCabecItens)-4;
         //Contagem da altura ocupada para impressão dos itens
         $fontProduto = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
-        $i = 1;
-        $numlinhas = 0;
+        // PATCH 9: começa no item 0 (o original pulava o primeiro) e a altura vem
+        // de calculeHeight() (gancho para custom/DanfeRtc). Item que não cabe vai
+        // para a próxima página, exceto se a página já está vazia (conta inteira,
+        // nunca comparação de float: 11.000000000000014 > 11 travava o worker) e
+        // com teto de páginas = itens + 1, para não haver laço infinito.
+        $i = 0;
         $hUsado = $hCabecItens;
         $w2 = round($w*0.28, 0);
         $hDispo = $hDispo1;
         $totPag = 1;
+        $naPagina = 0;
         while ($i < $this->det->length) {
-            $texto = $this->pDescricaoProduto($this->det->item($i));
-            $numlinhas = $this->pGetNumLines($texto, $w2, $fontProduto);
-            $hUsado += round(($numlinhas * $this->pdf->fontSize) + ($numlinhas * 0.5), 2);
-            if ($hUsado > $hDispo) {
+            $hItem = $this->calculeHeight($this->det->item($i), $w2);
+            if ($hUsado + $hItem > $hDispo && ($naPagina > 0 || $totPag === 1)
+                && $totPag <= $this->det->length) {
                 $totPag++;
                 $hDispo = $hDispo2;
                 $hUsado = $hCabecItens;
+                $naPagina = 0;
                 // Remove canhoto para páginas secundárias em modo paisagem ('L')
                 $w2 = round($this->wPrint*0.28, 0);
-                $i--; // decrementa para readicionar o item que não coube nessa pagina na outra.
+                continue; // reavalia o item que não coube nesta página na próxima
             }
+            $hUsado += $hItem;
+            $naPagina++;
             $i++;
         } //fim da soma das areas de itens usadas
         $qtdeItens = $i; //controle da quantidade de itens no DANFE
+        // PATCH 18: folhas de continuação dos dados adicionais vêm depois das de itens
+        $totPagItens = $totPag;
+        $totPag += $nPagCont;
+        if ($nPagCont > 0) {
+            $this->textoAdic .= "\n(CONTINUA EM DADOS ADICIONAIS - CONTINUAÇÃO, FOLHA " . ($totPagItens + 1) . ")";
+        }
         //montagem da primeira página
         $pag = 1;
         $x = $xInic;
@@ -764,7 +875,7 @@ class Danfe extends Common
         }
 
         //loop para páginas seguintes
-        for ($n = 2; $n <= $totPag; $n++) {
+        for ($n = 2; $n <= $totPagItens; $n++) {
             // fixa as margens
             $this->pdf->setMargins($margEsq, $margSup);
             //adiciona nova página
@@ -787,8 +898,25 @@ class Danfe extends Common
                 $this->pRodape($xInic, $this->hPrint + 4);
             }
             //se estiver na última página e ainda restar itens para inserir, adiciona mais uma página
-            if ($n == $totPag && $this->qtdeItensProc < $qtdeItens) {
+            if ($n == $totPagItens && $this->qtdeItensProc < $qtdeItens) {
+                $totPagItens++;
                 $totPag++;
+            }
+        }
+        // PATCH 18: continuação dos dados adicionais
+        $resto = $this->textoAdicContinuacao;
+        for ($n = $totPagItens + 1; $resto !== '' && $n <= $totPag + 50; $n++) {
+            $this->pdf->setMargins($margEsq, $margSup);
+            $this->pdf->addPage($this->orientacao, $this->papel);
+            $this->pdf->setLineWidth(0.1);
+            $this->pdf->setTextColor(0, 0, 0);
+            $y = $this->pCabecalhoDANFE($xInic, $yInic, $n, $totPag);
+            $hBox = $this->hPrint + $yInic - $y - $hfooter - 4;
+            $resto = $this->pDadosAdicionaisContinuacao($xInic, $y + 1, $this->wPrint, $hBox, $resto);
+            if ($this->orientacao == 'P') {
+                $this->pRodape($xInic, $y + 1 + $hBox + 3);
+            } else {
+                $this->pRodape($xInic, $this->hPrint + 4);
             }
         }
         //retorna o ID na NFe
@@ -814,6 +942,13 @@ class Danfe extends Common
     {
         if ($cdata == '') {
             return '';
+        }
+        // PATCH 11: só é Anfavea se tiver as tags dela com atributos. Antes, qualquer
+        // "<" no texto (HTML colado pelo ERP, "PRECO < 10", "<<OFERTA>>") fazia
+        // descartar tudo do primeiro "<" ao último ">": a informação sumia do DANFE.
+        // Fora do formato Anfavea, o texto vai literal, exatamente como veio.
+        if (!preg_match('/<\s*(id|div|entg|dest|ctl|ref)\b[^>]*=/i', $cdata)) {
+            return $cdata;
         }
         //remove qualquer texto antes ou depois da tag CDATA
         $cdata = str_replace('<![CDATA[', '<CDATA>', $cdata);
@@ -1111,7 +1246,16 @@ class Danfe extends Common
             $texto = $lgr . ", " . $nro . $cpl . "\n" . $bairro . " - "
                     . $CEP . "\n" . $mun . " - " . $UF . " "
                     . "Fone/Fax: " . $fone;
-            $this->pTextBox($x1, $y1, $tw, 8, $texto, $aFont, 'T', 'C', 0, '');
+            // PATCH 10: linha mais larga que a caixa era reduzida até virar
+            // microtexto; agora quebra em mais linhas (o quadro tem altura) com a
+            // maior fonte que couber. Se as 3 linhas cabem, nada muda.
+            if ($this->pGetNumLines($texto, $tw - 1, $aFont) <= 3) {
+                $this->pTextBox($x1, $y1, $tw, 8, $texto, $aFont, 'T', 'C', 0, '');
+            } else {
+                $hDisp = $y + $h - $y1 - 1;
+                $aFont = $this->fonteQueCabe($texto, $tw - 1, $hDisp, 8, 5.5);
+                $this->pTextBox($x1 + 0.5, $y1, $tw - 1, $hDisp, $texto, $aFont, 'T', 'C', 0, '', false);
+            }
         }
 
         //####################################################################################
@@ -1261,11 +1405,11 @@ class Danfe extends Common
                 if (isset($this->nfeProc)) {
                     $texto = ! empty($this->nfeProc->getElementsByTagName("nProt")->item(0)->nodeValue) ?
                             $this->nfeProc->getElementsByTagName("nProt")->item(0)->nodeValue : '';
-                    $tsHora = $this->pConvertTime($this->nfeProc->getElementsByTagName("dhRecbto")->item(0)->nodeValue);
+                    $tsHora = $this->pConvertTime($this->getTagValue($this->nfeProc, "dhRecbto"));
                     if ($texto != '') {
                         $texto .= "  -  " . date('d/m/Y H:i:s', $tsHora);
                     }
-                    $cStat = $this->nfeProc->getElementsByTagName("cStat")->item(0)->nodeValue;
+                    $cStat = $this->getTagValue($this->nfeProc, "cStat");
                 } else {
                     $texto = '';
                     $cStat = '';
@@ -1524,8 +1668,7 @@ class Danfe extends Common
         $texto .= ', ' . $this->dest->getElementsByTagName("nro")->item(0)->nodeValue;
         $texto .= $this->getTagValue($this->dest, "xCpl", " - ");
 
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'B', 'L', 0, '', true);
+        $this->valorQueCabe($x, $y, $w, $h, $texto, 10, 'B', 'B', 'L'); // PATCH 10
         //BAIRRO / DISTRITO
         $x += $w;
         $w = round($maxW*0.21, 0);
@@ -1534,8 +1677,7 @@ class Danfe extends Common
         $aFont = array('font'=>$this->fontePadrao, 'size'=>6, 'style'=>'');
         $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 1, '');
         $texto = $this->dest->getElementsByTagName("xBairro")->item(0)->nodeValue;
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorQueCabe($x, $y, $w, $h, $texto, 10, 'B', 'B', 'C'); // PATCH 10
         //CEP
         $x += $w;
         $w = $maxW-$w1-$w2-$wx;
@@ -1576,8 +1718,7 @@ class Danfe extends Common
         if (strtoupper(trim($texto)) == "EXTERIOR" && $this->dest->getElementsByTagName("xPais")->length > 0) {
             $texto .= " - " .  $this->dest->getElementsByTagName("xPais")->item(0)->nodeValue;
         }
-        $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'B', 'L', 0, '');
+        $this->valorQueCabe($x, $y, $w, $h, $texto, 10, 'B', 'B', 'L'); // PATCH 10
         //UF
         $x += $w;
         $w = 8;
@@ -1732,14 +1873,20 @@ class Danfe extends Common
                 $w = 28;
             }
             $increm = 1;
-            foreach ($this->dup as $k => $d) {
+            if (empty($this->dupGrade) && $this->dup->length > 0) {
+                // PATCH 18: nenhuma duplicata cabe na célula: todas estão nos dados adicionais
+                $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
+                $this->pTextBox($x, $y, $this->orientacao == 'P' ? $this->wPrint : $this->wPrint - $this->wCanhoto, 6, 'DUPLICATAS RELACIONADAS EM DADOS ADICIONAIS', $aFont, 'C', 'L', 1, '');
+                return $y + 6;
+            }
+            // PATCH 18: só as duplicatas que cabem no quadro (ver prepararDuplicatas())
+            foreach ($this->dupGrade as $k) {
                 $nDup = ! empty($this->dup->item($k)->getElementsByTagName('nDup')->item(0)->nodeValue) ?
                         $this->dup->item($k)->getElementsByTagName('nDup')->item(0)->nodeValue : '';
                 $dDup = ! empty($this->dup->item($k)->getElementsByTagName('dVenc')->item(0)->nodeValue) ?
                         $this->pYmd2dmy($this->dup->item($k)->getElementsByTagName('dVenc')->item(0)->nodeValue) : '';
                 $vDup = ! empty($this->dup->item($k)->getElementsByTagName('vDup')->item(0)->nodeValue) ?
-                        'R$ ' . number_format(
-                            $this->dup->item($k)->getElementsByTagName('vDup')->item(0)->nodeValue,
+                        'R$ ' . number_format((float)$this->dup->item($k)->getElementsByTagName('vDup')->item(0)->nodeValue,
                             2,
                             ",",
                             "."
@@ -1749,7 +1896,7 @@ class Danfe extends Common
                 if ($nDup!='0' && $nDup!='') {
                     $aFont = array('font'=>$this->fontePadrao, 'size'=>6, 'style'=>'');
                     $this->pTextBox($x, $y, $w, $h, 'Num.', $aFont, 'T', 'L', 1, '');
-                    $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
+                    $aFont = array('font'=>$this->fontePadrao, 'size'=>$this->fonteValorDup($nDup, $w, 'Num.'), 'style'=>'B');
                     $this->pTextBox($x, $y, $w, $h, $nDup, $aFont, 'T', 'R', 0, '');
                 } else {
                     $aFont = array('font'=>$this->fontePadrao, 'size'=>6, 'style'=>'');
@@ -1761,7 +1908,7 @@ class Danfe extends Common
                 $this->pTextBox($x, $y, $w, $h, $dDup, $aFont, 'C', 'R', 0, '');
                 $aFont = array('font'=>$this->fontePadrao, 'size'=>6, 'style'=>'');
                 $this->pTextBox($x, $y, $w, $h, 'Valor', $aFont, 'B', 'L', 0, '');
-                $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
+                $aFont = array('font'=>$this->fontePadrao, 'size'=>$this->fonteValorDup($vDup, $w, 'Valor'), 'style'=>'B');
                 $this->pTextBox($x, $y, $w, $h, $vDup, $aFont, 'B', 'R', 0, '');
                 $x += $w+$increm;
                 $dupcont += 1;
@@ -1843,8 +1990,7 @@ class Danfe extends Common
                 $fPag = !empty($this->detPag->item($k)->getElementsByTagName('tPag')->item(0)->nodeValue)
                     ? $this->detPag->item($k)->getElementsByTagName('tPag')->item(0)->nodeValue : '0';
                 $vPag = ! empty($this->detPag->item($k)->getElementsByTagName('vPag')->item(0)->nodeValue)
-                    ? 'R$ ' . number_format(
-                        $this->detPag->item($k)->getElementsByTagName('vPag')->item(0)->nodeValue,
+                    ? 'R$ ' . number_format((float)$this->detPag->item($k)->getElementsByTagName('vPag')->item(0)->nodeValue,
                         2,
                         ",",
                         "."
@@ -1913,7 +2059,7 @@ class Danfe extends Common
         if (isset($the_field)) {
             $the_value = $the_field->nodeValue;
             if (!empty($the_value)) {
-                $valorImposto = number_format($the_value, 2, ",", ".");
+                $valorImposto = number_format((float)$the_value, 2, ",", ".");
             }
         }
 
@@ -2041,7 +2187,7 @@ class Danfe extends Common
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w1, $h, $texto, $aFont, 'B', 'L', 0, '');
+        $this->valorTransporte($x, $y, $w1, $h, $texto, $aFont, 'B', 'L');
         //FRETE POR CONTA
         $x += $w1;
         $w2 = $maxW*0.15;
@@ -2084,7 +2230,7 @@ class Danfe extends Common
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w2, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w2, $h, $texto, $aFont, 'B', 'C');
         //PLACA DO VEÍC
         $x += $w2;
         $texto = 'PLACA DO VEÍCULO';
@@ -2100,7 +2246,7 @@ class Danfe extends Common
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w2, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w2, $h, $texto, $aFont, 'B', 'C');
         //UF
         $x += $w2;
         $w3 = round($maxW*0.04, 0);
@@ -2117,7 +2263,7 @@ class Danfe extends Common
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w3, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w3, $h, $texto, $aFont, 'B', 'C');
         //CNPJ / CPF
         $x += $w3;
         $w = $maxW-($w1+3*$w2+$w3);
@@ -2141,7 +2287,7 @@ class Danfe extends Common
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w, $h, $texto, $aFont, 'B', 'C');
         //#####################################################################
         //ENDEREÇO
         $y += $h;
@@ -2158,7 +2304,7 @@ class Danfe extends Common
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w1, $h, $texto, $aFont, 'B', 'L', 0, '');
+        $this->valorTransporte($x, $y, $w1, $h, $texto, $aFont, 'B', 'L');
         //MUNICÍPIO
         $x += $w1;
         $w2 = round($maxW*0.30, 0);
@@ -2172,7 +2318,7 @@ class Danfe extends Common
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w2, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w2, $h, $texto, $aFont, 'B', 'C');
         //UF
         $x += $w2;
         $w3 = round($maxW*0.04, 0);
@@ -2186,7 +2332,7 @@ class Danfe extends Common
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w3, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w3, $h, $texto, $aFont, 'B', 'C');
         //INSCRIÇÃO ESTADUAL
         $x += $w3;
         $w = $maxW-($w1+$w2+$w3);
@@ -2200,7 +2346,7 @@ class Danfe extends Common
             }
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w, $h, $texto, $aFont, 'B', 'C');
         //Tratar Multiplos volumes
         $volumes = $this->transp->getElementsByTagName('vol');
         $quantidade = 0;
@@ -2255,7 +2401,7 @@ class Danfe extends Common
         if (!empty($quantidade)) {
             $texto = $quantidade;
             $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-            $this->pTextBox($x, $y, $w1, $h, $texto, $aFont, 'B', 'C', 0, '');
+            $this->valorTransporte($x, $y, $w1, $h, $texto, $aFont, 'B', 'C');
         }
         //ESPÉCIE
         $x += $w1;
@@ -2265,7 +2411,7 @@ class Danfe extends Common
         $this->pTextBox($x, $y, $w2, $h, $texto, $aFont, 'T', 'L', 1, '');
         $texto = $especie;
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w2, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w2, $h, $texto, $aFont, 'B', 'C');
         //MARCA
         $x += $w2;
         $texto = 'MARCA';
@@ -2274,7 +2420,7 @@ class Danfe extends Common
         $texto = ! empty($this->transp->getElementsByTagName("marca")->item(0)->nodeValue) ?
                 $this->transp->getElementsByTagName("marca")->item(0)->nodeValue : '';
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w2, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w2, $h, $texto, $aFont, 'B', 'C');
         //NUMERAÇÃO
         $x += $w2;
         $texto = 'NUMERAÇÃO';
@@ -2282,7 +2428,7 @@ class Danfe extends Common
         $this->pTextBox($x, $y, $w2, $h, $texto, $aFont, 'T', 'L', 1, '');
         $texto = $numero;
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w2, $h, $texto, $aFont, 'B', 'C', 0, '');
+        $this->valorTransporte($x, $y, $w2, $h, $texto, $aFont, 'B', 'C');
         //PESO BRUTO
         $x += $w2;
         $w3 = round($maxW*0.20, 0);
@@ -2290,12 +2436,12 @@ class Danfe extends Common
         $aFont = array('font'=>$this->fontePadrao, 'size'=>6, 'style'=>'');
         $this->pTextBox($x, $y, $w3, $h, $texto, $aFont, 'T', 'L', 1, '');
         if (is_numeric($pesoBruto) && $pesoBruto > 0) {
-            $texto = number_format($pesoBruto, 3, ",", ".");
+            $texto = number_format((float)$pesoBruto, 3, ",", ".");
         } else {
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w3, $h, $texto, $aFont, 'B', 'R', 0, '');
+        $this->valorTransporte($x, $y, $w3, $h, $texto, $aFont, 'B', 'R');
         //PESO LÍQUIDO
         $x += $w3;
         $w = $maxW -($w1+3*$w2+$w3);
@@ -2303,12 +2449,12 @@ class Danfe extends Common
         $aFont = array('font'=>$this->fontePadrao, 'size'=>6, 'style'=>'');
         $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 1, '');
         if (is_numeric($pesoLiquido) && $pesoLiquido > 0) {
-            $texto = number_format($pesoLiquido, 3, ",", ".");
+            $texto = number_format((float)$pesoLiquido, 3, ",", ".");
         } else {
             $texto = '';
         }
         $aFont = array('font'=>$this->fontePadrao, 'size'=>10, 'style'=>'B');
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'B', 'R', 0, '');
+        $this->valorTransporte($x, $y, $w, $h, $texto, $aFont, 'B', 'R');
         return ($y+$h);
     } //fim transporteDANFE
 
@@ -2321,12 +2467,305 @@ class Danfe extends Common
             return "";
         }
         $valor_original = $valor_original->nodeValue;
-        $valor = ! empty($valor_original) ? number_format($valor_original, 2, ",", ".") : '';
+        $valor = ! empty($valor_original) ? number_format((float)$valor_original, 2, ",", ".") : '';
 
         if ($valor != "") {
             return sprintf($formato, $valor);
         }
         return "";
+    }
+
+    /**
+     * PATCH 10: maior fonte, de $max até $min (passos de 0,5), com a qual o texto
+     * quebrado na largura $w cabe na altura $h. Texto longo nunca vira microtexto
+     * nem invade a caixa vizinha; o que já cabia continua no tamanho original.
+     *
+     * @return array fonte no formato do pTextBox
+     */
+    protected function fonteQueCabe($texto, $w, $h, $max, $min, $estilo = '')
+    {
+        for ($s = $max; $s > $min; $s -= 0.5) {
+            $f = array('font'=>$this->fontePadrao, 'size'=>$s, 'style'=>$estilo);
+            if ($this->pGetNumLines($texto, $w, $f) * ($s / 72 * 25.4) <= $h) {
+                return $f;
+            }
+        }
+        return array('font'=>$this->fontePadrao, 'size'=>$min, 'style'=>$estilo);
+    }
+
+    /**
+     * PATCH 10: valor de um campo de caixa com rótulo (destinatário). Se cabe em
+     * uma linha no tamanho original, desenha exatamente como antes (o pTextBox
+     * reduzia a fonte até caber, virando microtexto com endereço longo); se não
+     * cabe, quebra em linhas abaixo do rótulo com a maior fonte que couber (mín. 4,5).
+     */
+    protected function valorQueCabe($x, $y, $w, $h, $texto, $size, $estilo, $vAlign, $hAlign)
+    {
+        $aFont = array('font'=>$this->fontePadrao, 'size'=>$size, 'style'=>$estilo);
+        $this->pdf->SetFont($aFont['font'], $aFont['style'], $aFont['size']);
+        if ($this->pdf->GetStringWidth(mb_convert_encoding(trim($texto), 'ISO-8859-1', 'UTF-8')) <= $w - 1) {
+            $this->pTextBox($x, $y, $w, $h, $texto, $aFont, $vAlign, $hAlign, 0, '');
+            return;
+        }
+        $hRotulo = 2.1;
+        $aFont = $this->fonteQueCabe($texto, $w - 1, $h - $hRotulo, $size, 4.5, $estilo);
+        $this->pTextBox($x + 0.5, $y + $hRotulo, $w - 1, $h - $hRotulo, $texto, $aFont, 'C', $hAlign, 0, '', false);
+    }
+
+    /**
+     * PATCH 18: valor de caixa do quadro TRANSPORTADOR/VOLUMES. Cabe numa linha
+     * (com 0,5 mm de folga de cada lado), mesmo reduzido até 4,5 pt: desenha numa
+     * linha, como sempre. Se não cabe nem assim (razão social, marca ou numeração
+     * de 60 caracteres), quebra abaixo do rótulo sem atravessar a borda.
+     */
+    protected function valorTransporte($x, $y, $w, $h, $texto, $aFont, $vAlign, $hAlign)
+    {
+        $maior = $texto === '' ? 0 : $this->larguraTexto($texto, $aFont['size'], $aFont['style']);
+        if ($maior <= $w - 1) {
+            $this->pTextBox($x, $y, $w, $h, $texto, $aFont, $vAlign, $hAlign, 0, '');
+            return;
+        }
+        $s = floor($aFont['size'] * ($w - 1) / $maior * 2) / 2;
+        if ($s >= 4.5) {
+            $aFont['size'] = $s;
+            $this->pTextBox($x, $y, $w, $h, $texto, $aFont, $vAlign, $hAlign, 0, '');
+            return;
+        }
+        $hRotulo = 2.1;
+        $aFont = $this->fonteQueCabe($texto, $w - 1, $h - $hRotulo, $aFont['size'], 4.5, $aFont['style']);
+        $this->pTextBox($x + 0.5, $y + $hRotulo, $w - 1, $h - $hRotulo, $texto, $aFont, 'C', $hAlign, 0, '', false);
+    }
+
+    /**
+     * PATCH 18: número, vencimento e valor da duplicata $k, como o quadro imprime.
+     *
+     * @return string[] [nDup, vencimento dd/mm/aaaa, 'R$ valor']
+     */
+    protected function dadosDuplicata($k)
+    {
+        $dup = $this->dup->item($k);
+        $nDup = $this->getTagValue($dup, 'nDup');
+        $dVenc = $this->getTagValue($dup, 'dVenc');
+        $vDup = $this->getTagValue($dup, 'vDup');
+        return array(
+            $nDup,
+            $dVenc !== '' ? $this->pYmd2dmy($dVenc) : '',
+            $vDup !== '' ? 'R$ ' . number_format((float) $vDup, 2, ",", ".") : '',
+        );
+    }
+
+    /**
+     * PATCH 18: o texto cabe na célula da duplicata, ao lado do rótulo, com fonte >= 4,5?
+     */
+    protected function cabeNaCelulaDup($texto, $w, $rotulo)
+    {
+        return $this->larguraTexto($texto, 4.5, 'B') <= $w - $this->larguraTexto($rotulo, 6, '') - 1.5;
+    }
+
+    /**
+     * PATCH 18: maior fonte (7 → 4,5, passos de 0,5) com que o valor cabe na
+     * célula da duplicata ao lado do rótulo. Valor que já cabia: 7, como antes.
+     */
+    protected function fonteValorDup($texto, $w, $rotulo)
+    {
+        $livre = $w - $this->larguraTexto($rotulo, 6, '') - 1.5;
+        for ($s = 7; $s > 4.5; $s -= 0.5) {
+            if ($this->larguraTexto($texto, $s, 'B') <= $livre) {
+                return $s;
+            }
+        }
+        return 4.5;
+    }
+
+    /**
+     * PATCH 18: largura do texto em mm, medida como o pTextBox desenha (Windows-1252).
+     */
+    protected function larguraTexto($texto, $size, $style = '')
+    {
+        $this->pdf->SetFont($this->fontePadrao, $style, $size);
+        return $this->pdf->getStringWidth(mb_convert_encoding(trim((string) $texto), 'Windows-1252', 'UTF-8'));
+    }
+
+    /**
+     * PATCH 18: separa as duplicatas entre o quadro FATURA/DUPLICATA (até 4
+     * linhas; número e valor cabendo na célula com fonte >= 4,5) e um texto com
+     * as demais, na ordem do XML, que vai para os dados adicionais. Antes, da 29ª
+     * duplicata em diante (37ª na paisagem) nada era impresso.
+     *
+     * @return string '' quando todas cabem no quadro
+     */
+    protected function prepararDuplicatas()
+    {
+        $this->dupGrade = array();
+        $total = $this->dup->length;
+        if ($total == 0) {
+            return '';
+        }
+        $porLinha = $this->orientacao == 'P' ? 7 : 9;
+        $w = $this->orientacao == 'P' ? round($this->wPrint/7.018, 0)-1 : 28;
+        $extra = array();
+        for ($k = 0; $k < $total; $k++) {
+            list($nDup, $dVenc, $vDup) = $this->dadosDuplicata($k);
+            if (empty($extra) && count($this->dupGrade) < 4 * $porLinha
+                && $this->cabeNaCelulaDup($nDup, $w, 'Num.') && $this->cabeNaCelulaDup($vDup, $w, 'Valor')) {
+                $this->dupGrade[] = $k;
+                continue;
+            }
+            $num = ($nDup != '0' && $nDup != '') ? $nDup : (string) ($k + 1);
+            $extra[] = trim("$num VENC. $dVenc $vDup");
+        }
+        return empty($extra) ? '' : 'DUPLICATAS (CONTINUAÇÃO DA FATURA): ' . implode(' / ', $extra);
+    }
+
+    /**
+     * PATCH 18: quebra o texto como o pTextBox quebraria na largura $w e devolve
+     * [as primeiras $nLinhas linhas, o restante ('' se coube tudo)].
+     *
+     * @return string[]
+     */
+    protected function dividirTexto($texto, $w, $nLinhas, $aFont)
+    {
+        $t = mb_convert_encoding(
+            html_entity_decode(trim($texto), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            'Windows-1252',
+            'UTF-8'
+        );
+        $this->pdf->SetFont($aFont['font'], $aFont['style'], $aFont['size']);
+        $this->pdf->wordWrap($t, $w);
+        $linhas = explode("\n", $t);
+        // de volta a UTF-8, com & escapado: o pTextBox decodifica as entidades de novo
+        $volta = function ($ls) {
+            return str_replace('&', '&amp;', mb_convert_encoding(implode("\n", $ls), 'UTF-8', 'Windows-1252'));
+        };
+        if (count($linhas) <= $nLinhas) {
+            return array($texto, '');
+        }
+        return array($volta(array_slice($linhas, 0, $nLinhas)), $volta(array_slice($linhas, $nLinhas)));
+    }
+
+    /**
+     * PATCH 18: número de linhas do texto quebrado na largura $w.
+     */
+    protected function contarLinhas($texto, $w, $aFont)
+    {
+        $t = mb_convert_encoding(
+            html_entity_decode(trim($texto), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            'Windows-1252',
+            'UTF-8'
+        );
+        $this->pdf->SetFont($aFont['font'], $aFont['style'], $aFont['size']);
+        return $this->pdf->wordWrap($t, $w);
+    }
+
+    /**
+     * PATCH 18: quadro "DADOS ADICIONAIS (CONTINUAÇÃO)" numa folha própria, com o
+     * texto que não coube na folha 1. Devolve o que ainda sobrou.
+     */
+    protected function pDadosAdicionaisContinuacao($x, $y, $w, $h, $texto)
+    {
+        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'B');
+        $this->pTextBox($x, $y, $w, 8, 'DADOS ADICIONAIS (CONTINUAÇÃO)', $aFont, 'T', 'L', 0, '');
+        $y += 3;
+        $aFont = array('font'=>$this->fontePadrao, 'size'=>6, 'style'=>'B');
+        $this->pTextBox($x, $y, $w, $h, 'INFORMAÇÕES COMPLEMENTARES', $aFont, 'T', 'L', 1, '');
+        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
+        $cabem = max(1, (int) floor(($h - 3 + 0.3) / (7 / 72 * 25.4)));
+        list($agora, $resto) = $this->dividirTexto($texto, $w - 2, $cabem, $aFont);
+        $this->pTextBox($x, $y + 3, $w - 2, $h - 3, $agora, $aFont, 'T', 'L', 0, '', false);
+        return $resto;
+    }
+
+    /**
+     * PATCH 9: altura estimada de um item na contagem de páginas do montaDANFE().
+     * A versão base é a fórmula original; custom/DanfeRtc sobrescreve.
+     *
+     * @param \DOMElement $item <det>
+     * @param float $w2 largura da coluna de descrição
+     * @return float
+     */
+    protected function calculeHeight($item, $w2)
+    {
+        $fontProduto = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
+        $numlinhas = $this->pGetNumLines($this->pDescricaoProduto($item), $w2, $fontProduto);
+        $h = round(($numlinhas * $this->pdf->fontSize) + ($numlinhas * 0.5), 2);
+        // PATCH 18: mesma regra do pItensDANFE (largura da grade = $w2 / 0,28)
+        return max($h, $this->alturaNumerosItem($item, $w2 / 0.28));
+    }
+
+    /**
+     * PATCH 18: valor numérico de célula da grade do Clássico. Se cabe (com 0,5 mm
+     * de folga de cada lado) na fonte original, desenha como sempre; senão usa a
+     * maior fonte (mín. 4,5) que cabe e, só se nem assim couber (valores de 13
+     * dígitos), quebra nos separadores de milhar: nunca no meio de um grupo, nunca
+     * atravessando a borda da coluna.
+     */
+    protected function celulaNumeroItem($x, $y, $w, $h, $texto, $aFont, $vAlign, $hAlign)
+    {
+        if ($texto === '' || $this->larguraTexto($texto, $aFont['size'], $aFont['style']) <= $w - 1) {
+            $this->pTextBox($x, $y, $w, $h, $texto, $aFont, $vAlign, $hAlign, 0, '');
+            return;
+        }
+        $q = $this->quebraNumero($texto, $w - 1, $aFont);
+        $aFont['size'] = $q['size'];
+        $this->pTextBox($x + 0.5, $y, $w - 1, $h, implode("\n", $q['linhas']), $aFont, $vAlign, $hAlign, 0, '', false);
+    }
+
+    /**
+     * PATCH 18: maior fonte (passos de 0,5, mín. 4,5) com que o número cabe em $w;
+     * a 4,5 sem caber, linhas quebradas depois de "." ou ",".
+     *
+     * @return array{size: float, linhas: string[]}
+     */
+    protected function quebraNumero($texto, $w, $aFont)
+    {
+        for ($s = $aFont['size']; $s >= 4.5; $s -= 0.5) {
+            if ($this->larguraTexto($texto, $s, $aFont['style']) <= $w) {
+                return array('size' => $s, 'linhas' => array($texto));
+            }
+        }
+        $linhas = array();
+        $atual = '';
+        foreach (preg_split('/(?<=[.,])/', $texto) as $pedaco) {
+            if ($atual !== '' && $this->larguraTexto($atual . $pedaco, 4.5, $aFont['style']) > $w) {
+                $linhas[] = $atual;
+                $atual = '';
+            }
+            $atual .= $pedaco;
+        }
+        $linhas[] = $atual;
+        return array('size' => 4.5, 'linhas' => $linhas);
+    }
+
+    /**
+     * PATCH 18: altura que os números do item pedem na grade do Clássico quando
+     * algum só cabe quebrado em linhas; 0 quando todos cabem numa linha.
+     */
+    protected function alturaNumerosItem($item, $w)
+    {
+        $prod = $item->getElementsByTagName("prod")->item(0);
+        $imposto = $item->getElementsByTagName("imposto")->item(0);
+        $ICMS = $imposto ? $imposto->getElementsByTagName("ICMS")->item(0) : null;
+        $IPI = $imposto ? $imposto->getElementsByTagName("IPI")->item(0) : null;
+        $nf = function ($no, $tag, $casas, $padrao) {
+            $v = $no ? $this->getTagValue($no, $tag) : '';
+            return ! empty($v) ? number_format((float) $v, $casas, ",", ".") : $padrao;
+        };
+        $cols = array(0.07, 0.06, 0.06, 0.06, 0.06, 0.05, 0.035);
+        $textos = array(
+            $nf($prod, 'qCom', 4, ''), $nf($prod, 'vUnCom', 4, ''), $nf($prod, 'vProd', 2, ''),
+            $ICMS ? $nf($ICMS, 'vBC', 2, '0, 00') : '', $ICMS ? $nf($ICMS, 'vICMS', 2, '0, 00') : '',
+            $nf($IPI, 'vIPI', 2, ''), $ICMS ? $nf($ICMS, 'pICMS', 2, '0, 00') : '',
+        );
+        $aFont = array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>'');
+        $n = 1;
+        foreach ($textos as $i => $texto) {
+            $wc = round($w * $cols[$i], 0);
+            if ($texto !== '' && $this->larguraTexto($texto, 7) > $wc - 1) {
+                $n = max($n, count($this->quebraNumero($texto, $wc - 1, $aFont)['linhas']));
+            }
+        }
+        // a coluna da alíquota do IPI é o resto da largura: sempre larga o bastante
+        return $n > 1 ? round($n * 4.5 / 72 * 25.4 + 0.6, 2) : 0;
     }
 
     /**
@@ -2375,11 +2814,11 @@ class Danfe extends Common
             $infAdProd .= ' ';
         }
         $loteTxt ='';
-        $rastro = $prod->getElementsByTagName("med");
-        if (!isset($rastro)) {
-            $rastro = $prod->getElementsByTagName("rastro");
-        }
-        if (isset($rastro)) {
+        // PATCH 18: getElementsByTagName nunca devolve null, então o "rastro"
+        // (lote, quantidade, fabricação e validade) nunca era lido. Agora: med
+        // primeiro (PMC; texto igual ao de antes) e depois cada rastro.
+        foreach (array("med", "rastro") as $grupoLote) {
+            $rastro = $prod->getElementsByTagName($grupoLote);
             $i = 0;
             while ($i < $rastro->length) {
                 $loteTxt .= $this->getTagValue($rastro->item($i), 'nLote', ' Lote: ');
@@ -2389,21 +2828,105 @@ class Danfe extends Common
                 $loteTxt .= $this->getTagValue($rastro->item($i), 'vPMC', ' PMC: ');
                 $i++;
             }
-            if ($loteTxt != '') {
-                $loteTxt.= ' ';
-            }
+        }
+        if ($loteTxt != '') {
+            $loteTxt.= ' ';
         }
         //NT2013.006 FCI
         $nFCI = (! empty($itemProd->getElementsByTagName('nFCI')->item(0)->nodeValue)) ?
                 ' FCI:'.$itemProd->getElementsByTagName('nFCI')->item(0)->nodeValue : '';
         $tmp_ad=$infAdProd . ($this->descProdInfoComplemento ? $loteTxt . $impostos . $nFCI : '');
         $texto = $prod->getElementsByTagName("xProd")->item(0)->nodeValue . (strlen($tmp_ad)!=0?"\n    ".$tmp_ad:'');
+        // PATCH 18: veículo novo na descrição (o bloco antigo era desenhado abaixo
+        // da faixa do item, sem altura reservada: os itens seguintes caíam por cima)
+        $texto .= $this->textoVeiculo($itemProd);
         //decodifica os caracteres html no xml
         $texto = html_entity_decode($texto);
         if ($this->descProdQuebraLinha) {
             $texto = str_replace(";", "\n", $texto);
         }
-        return $texto;
+        return $this->limitarDescricao($texto, $itemProd);
+    }
+
+    /**
+     * PATCH 18: dados do veículo novo (veicProd), com as tabelas do RENAVAM.
+     */
+    protected function textoVeiculo($det)
+    {
+        $v = $det->getElementsByTagName('veicProd')->item(0);
+        if (empty($v)) {
+            return '';
+        }
+        $tabelas = array(
+            'tpComb' => array(1=>'ALCOOL', 2=>'GASOLINA', 3=>'DIESEL', 4=>'GASOGENIO', 5=>'GAS METANO',
+                6=>'ELETRICO/FONTE INTERNA', 7=>'ELETRICO/FONTE EXTERNA', 8=>'GASOL/GAS NATURAL COMBUSTIVEL',
+                9=>'ALCOOL/GAS NATURAL COMBUSTIVEL', 10=>'DIESEL/GAS NATURAL COMBUSTIVEL', 11=>'VIDE/CAMPO/OBSERVACAO',
+                12=>'ALCOOL/GAS NATURAL VEICULAR', 13=>'GASOLINA/GAS NATURAL VEICULAR', 14=>'DIESEL/GAS NATURAL VEICULAR',
+                15=>'GAS NATURAL VEICULAR', 16=>'ALCOOL/GASOLINA', 17=>'GASOLINA/ALCOOL/GAS NATURAL', 18=>'GASOLINA/ELETRICO'),
+            'tpVeic' => array(1=>'BICICLETA', 2=>'CICLOMOTOR', 3=>'MOTONETA', 4=>'MOTOCICLETA', 5=>'TRICICLO',
+                6=>'AUTOMOVEL', 7=>'MICROONIBUS', 8=>'ONIBUS', 9=>'BONDE', 10=>'REBOQUE', 11=>'SEMI-REBOQUE',
+                12=>'CHARRETE', 13=>'CAMIONETA', 14=>'CAMINHAO', 15=>'CARROCA', 16=>'CARRO DE MAO',
+                17=>'CAMINHAO TRATOR', 18=>'TRATOR DE RODAS', 19=>'TRATOR DE ESTEIRAS', 20=>'TRATOR MISTO',
+                21=>'QUADRICICLO', 22=>'CHASSI/PLATAFORMA', 23=>'CAMINHONETE', 24=>'SIDE-CAR', 25=>'UTILITARIO',
+                26=>'MOTOR-CASA'),
+            'espVeic' => array(1=>'PASSAGEIRO', 2=>'CARGA', 3=>'MISTO', 4=>'CORRIDA', 5=>'TRACAO', 6=>'ESPECIAL', 7=>'COLECAO'),
+            'tpPint' => array('F'=>'FOSCA', 'S'=>'SÓLIDA', 'P'=>'PEROLIZADA', 'M'=>'METALICA'),
+        );
+        $campos = array(
+            'CHASSI' => 'chassi', 'COR' => 'xCor', 'MOTOR' => 'nMotor', 'SÉRIE' => 'nSerie',
+            'ANO MOD' => 'anoMod', 'ANO FAB' => 'anoFab', 'POTÊNCIA' => 'pot', 'CILINDRADAS' => 'cilin',
+            'COMBUSTÍVEL' => 'tpComb', 'MARCA/MODELO' => 'cMod', 'TIPO' => 'tpVeic', 'ESPÉCIE' => 'espVeic',
+            'PINTURA' => 'tpPint', 'CMT' => 'CMT', 'DIST. EIXOS' => 'dist', 'PESO LÍQ' => 'pesoL', 'PESO BRUTO' => 'pesoB',
+        );
+        $partes = array();
+        foreach ($campos as $rotulo => $tag) {
+            $valor = $this->getTagValue($v, $tag);
+            if ($valor === '') {
+                continue;
+            }
+            if (isset($tabelas[$tag])) {
+                $chave = $tag === 'tpPint' ? $valor : (int) $valor;
+                if (isset($tabelas[$tag][$chave])) {
+                    $valor .= '-' . $tabelas[$tag][$chave];
+                }
+            }
+            $partes[] = "$rotulo: $valor";
+        }
+        return empty($partes) ? '' : "\n" . implode('  ', $partes);
+    }
+
+    /**
+     * PATCH 18: largura útil (mm), fonte e altura de linha da descrição do item,
+     * e linhas fixas da faixa além dela. custom/DanfeRtc sobrescreve.
+     *
+     * @return array [largura, fonte, altura da linha, linhas extras]
+     */
+    protected function medidaDescricao()
+    {
+        $w = $this->orientacao == 'P' ? $this->wPrint : $this->wPrint - $this->wCanhoto;
+        return array(round($w * 0.28, 0) - 0.2, array('font'=>$this->fontePadrao, 'size'=>7, 'style'=>''), 7 / 72 * 25.4 + 0.5, 0);
+    }
+
+    /**
+     * PATCH 18: descrição de item mais alta que uma folha inteira (500 rastros,
+     * infAdProd com dezenas de ";") saía da página. Fica na faixa o que cabe numa
+     * folha e o restante vai para os dados adicionais (que continuam em folhas
+     * próprias, se preciso), com aviso nos dois lugares.
+     */
+    protected function limitarDescricao($texto, $det)
+    {
+        if (empty($this->hPrint) || empty($this->pdf)) {
+            return $texto;
+        }
+        list($w, $aFont, $linhaH, $extras) = $this->medidaDescricao();
+        $hDispo2 = $this->hPrint - 10 - ($this->hCabecalho + 5 + $this->hCabecalhoItens) - 4;
+        $max = (int) floor(($hDispo2 - $this->hCabecalhoItens - 2) / $linhaH) - $extras;
+        if ($max < 2 || $this->contarLinhas($texto, $w, $aFont) <= $max) {
+            return $texto;
+        }
+        list($cabe, $resto) = $this->dividirTexto($texto, $w, $max - 1, $aFont);
+        $this->descContinua[$det->getAttribute('nItem')] = $resto;
+        return $cabe . "\n(CONTINUA EM DADOS ADICIONAIS)";
     }
 
     /**
@@ -2423,6 +2946,13 @@ class Danfe extends Common
         $oldX = $x;
         $oldY = $y;
         $totItens = $this->det->length;
+        if ($hmax < $hCabecItens + 1) {
+            // PATCH 18: folha sem espaço nem para o cabeçalho da grade (dados
+            // adicionais/duplicatas ocupando a folha 1): nada de caixa com altura
+            // negativa, que jogava os blocos seguintes por cima do cabeçalho. Os
+            // itens já foram contados para a folha seguinte.
+            return $oldY;
+        }
         //#####################################################################
         //DADOS DOS PRODUTOS / SERVIÇOS
         $texto = "DADOS DOS PRODUTOS / SERVIÇOS ";
@@ -2563,6 +3093,8 @@ class Danfe extends Common
 
                 $linhaDescr = $this->pGetNumLines($textoProduto, $w2, $aFont);
                 $h = round(($linhaDescr * $this->pdf->fontSize)+ ($linhaDescr * 0.5), 2);
+                // PATCH 18: número que só cabe quebrado (valores de 13 dígitos) aumenta a faixa
+                $h = max($h, $this->alturaNumerosItem($thisItem, $w));
                 $hUsado += $h;
 
                 $diffH = $hmax - $hUsado;
@@ -2619,82 +3151,78 @@ class Danfe extends Common
                     $alinhamento = 'R';
                 }
                 // QTDADE
-                $texto = number_format($prod->getElementsByTagName("qCom")->item(0)->nodeValue, 4, ",", ".");
-                $this->pTextBox($x, $y, $w7, $h, $texto, $aFont, 'T', $alinhamento, 0, '');
+                $texto = number_format((float)$prod->getElementsByTagName("qCom")->item(0)->nodeValue, 4, ",", ".");
+                $this->celulaNumeroItem($x, $y, $w7, $h, $texto, $aFont, 'T', $alinhamento);
                 $x += $w7;
                 // Valor Unitário
-                $texto = number_format($prod->getElementsByTagName("vUnCom")->item(0)->nodeValue, 4, ",", ".");
-                $this->pTextBox($x, $y, $w8, $h, $texto, $aFont, 'T', $alinhamento, 0, '');
+                $texto = number_format((float)$prod->getElementsByTagName("vUnCom")->item(0)->nodeValue, 4, ",", ".");
+                $this->celulaNumeroItem($x, $y, $w8, $h, $texto, $aFont, 'T', $alinhamento);
                 $x += $w8;
                 // Valor do Produto
                 $texto = "";
                 if (is_numeric($prod->getElementsByTagName("vProd")->item(0)->nodeValue)) {
-                    $texto = number_format($prod->getElementsByTagName("vProd")->item(0)->nodeValue, 2, ",", ".");
+                    $texto = number_format((float)$prod->getElementsByTagName("vProd")->item(0)->nodeValue, 2, ",", ".");
                 }
-                $this->pTextBox($x, $y, $w9, $h, $texto, $aFont, 'T', $alinhamento, 0, '');
+                $this->celulaNumeroItem($x, $y, $w9, $h, $texto, $aFont, 'T', $alinhamento);
                 //Valor da Base de calculo
                 $x += $w9;
                 if (isset($ICMS)) {
                     $texto = ! empty($ICMS->getElementsByTagName("vBC")->item(0)->nodeValue) ?
-                            number_format(
-                                $ICMS->getElementsByTagName("vBC")->item(0)->nodeValue,
+                            number_format((float)$ICMS->getElementsByTagName("vBC")->item(0)->nodeValue,
                                 2,
                                 ",",
                                 "."
                             ) : '0, 00';
-                    $this->pTextBox($x, $y, $w10, $h, $texto, $aFont, 'T', $alinhamento, 0, '');
+                    $this->celulaNumeroItem($x, $y, $w10, $h, $texto, $aFont, 'T', $alinhamento);
                 }
                 //Valor do ICMS
                 $x += $w10;
                 if (isset($ICMS)) {
                     $texto = ! empty($ICMS->getElementsByTagName("vICMS")->item(0)->nodeValue) ?
-                            number_format(
-                                $ICMS->getElementsByTagName("vICMS")->item(0)->nodeValue,
+                            number_format((float)$ICMS->getElementsByTagName("vICMS")->item(0)->nodeValue,
                                 2,
                                 ",",
                                 "."
                             ) : '0, 00';
-                    $this->pTextBox($x, $y, $w11, $h, $texto, $aFont, 'T', $alinhamento, 0, '');
+                    $this->celulaNumeroItem($x, $y, $w11, $h, $texto, $aFont, 'T', $alinhamento);
                 }
                 //Valor do IPI
                 $x += $w11;
                 if (isset($IPI)) {
                     $texto = ! empty($IPI->getElementsByTagName("vIPI")->item(0)->nodeValue) ?
-                            number_format($IPI->getElementsByTagName("vIPI")->item(0)->nodeValue, 2, ",", ".") :'';
+                            number_format((float)$IPI->getElementsByTagName("vIPI")->item(0)->nodeValue, 2, ",", ".") :'';
                 } else {
                     $texto = '';
                 }
-                $this->pTextBox($x, $y, $w12, $h, $texto, $aFont, 'T', $alinhamento, 0, '');
+                $this->celulaNumeroItem($x, $y, $w12, $h, $texto, $aFont, 'T', $alinhamento);
                 // %ICMS
                 $x += $w12;
                 if (isset($ICMS)) {
                     $texto = ! empty($ICMS->getElementsByTagName("pICMS")->item(0)->nodeValue) ?
-                            number_format(
-                                $ICMS->getElementsByTagName("pICMS")->item(0)->nodeValue,
+                            number_format((float)$ICMS->getElementsByTagName("pICMS")->item(0)->nodeValue,
                                 2,
                                 ",",
                                 "."
                             ) : '0, 00';
-                    $this->pTextBox($x, $y, $w13, $h, $texto, $aFont, 'T', 'C', 0, '');
+                    $this->celulaNumeroItem($x, $y, $w13, $h, $texto, $aFont, 'T', 'C');
                 }
                 //%IPI
                 $x += $w13;
                 if (isset($IPI)) {
                     $texto = ! empty($IPI->getElementsByTagName("pIPI")->item(0)->nodeValue) ?
-                            number_format($IPI->getElementsByTagName("pIPI")->item(0)->nodeValue, 2, ",", ".") : '';
+                            number_format((float)$IPI->getElementsByTagName("pIPI")->item(0)->nodeValue, 2, ",", ".") : '';
                 } else {
                     $texto = '';
                 }
-                $this->pTextBox($x, $y, $w14, $h, $texto, $aFont, 'T', 'C', 0, '');
+                $this->celulaNumeroItem($x, $y, $w14, $h, $texto, $aFont, 'T', 'C');
 
 
                 // Dados do Veiculo Somente para veiculo 0 Km
                 $veicProd = $prod->getElementsByTagName("veicProd")->item(0);
                 // Tag somente é gerada para veiculo 0k, e só é permitido um veiculo por NF-e por conta do detran
                 // Verifica se a Tag existe
-                if (!empty($veicProd)) {
-                    $this->pDadosItenVeiculoDANFE($oldX, $y, $nInicio, $h, $prod);
-                }
+                // PATCH 18: os dados do veículo agora vão na descrição (textoVeiculo());
+                // pDadosItenVeiculoDANFE() fica só por compatibilidade
 
 
                 $y += $h;
@@ -2926,7 +3454,7 @@ class Danfe extends Common
         if (isset($this->ISSQNtot)) {
             $texto = ! empty($this->ISSQNtot->getElementsByTagName("vServ")->item(0)->nodeValue) ?
                     $this->ISSQNtot->getElementsByTagName("vServ")->item(0)->nodeValue : '';
-            $texto = number_format($texto, 2, ",", ".");
+            $texto = number_format((float)$texto, 2, ",", ".");
         } else {
             $texto = '';
         }
@@ -2940,7 +3468,7 @@ class Danfe extends Common
         if (isset($this->ISSQNtot)) {
             $texto = ! empty($this->ISSQNtot->getElementsByTagName("vBC")->item(0)->nodeValue) ?
                     $this->ISSQNtot->getElementsByTagName("vBC")->item(0)->nodeValue : '';
-            $texto = ! empty($texto) ? number_format($texto, 2, ",", ".") : '';
+            $texto = ! empty($texto) ? number_format((float)$texto, 2, ",", ".") : '';
         } else {
             $texto = '';
         }
@@ -2959,7 +3487,7 @@ class Danfe extends Common
         if (isset($this->ISSQNtot)) {
             $texto = ! empty($this->ISSQNtot->getElementsByTagName("vISS")->item(0)->nodeValue) ?
                     $this->ISSQNtot->getElementsByTagName("vISS")->item(0)->nodeValue : '';
-            $texto = ! empty($texto) ? number_format($texto, 2, ",", ".") : '';
+            $texto = ! empty($texto) ? number_format((float)$texto, 2, ",", ".") : '';
         } else {
             $texto = '';
         }
@@ -3162,10 +3690,12 @@ class Danfe extends Common
         }
         $texto .= $this->pYmd2dmy($dEmi) ." ";
         $texto .= "VALOR TOTAL: R$ ";
-        $texto .= number_format($this->ICMSTot->getElementsByTagName("vNF")->item(0)->nodeValue, 2, ",", ".") . " ";
+        $texto .= number_format((float)$this->ICMSTot->getElementsByTagName("vNF")->item(0)->nodeValue, 2, ",", ".") . " ";
         $texto .= "DESTINATÁRIO: ";
         $texto .= $destinatario;
         if ($this->orientacao == 'P') {
+            // PATCH 10: com endereço longo o texto passava da caixa de 10 mm
+            $aFont = $this->fonteQueCabe($texto, $w-1, $h-0.5, 7, 4.5);
             $this->pTextBox($x, $y, $w-1, $h, $texto, $aFont, 'C', 'L', 0, '', false);
             $x1 = $x + $w;
             $w1 = $this->wPrint - $w;
@@ -3194,6 +3724,7 @@ class Danfe extends Common
             return $y;
         } else {
             $x--;
+            $aFontSmall = $this->fonteQueCabe($texto, $w-1, $h-0.5, 6, 4.5); // PATCH 10
             $x = $this->pTextBox90($x, $y, $w-1, $h, $texto, $aFontSmall, 'C', 'L', 0, '', false);
             //NUMERO DA NOTA FISCAL LOGO NFE
             $w1 = 18;
@@ -3263,7 +3794,9 @@ class Danfe extends Common
         $cUF    = $this->ide->getElementsByTagName('cUF')->item(0)->nodeValue;
         $CNPJ   = "00000000000000" . $this->emit->getElementsByTagName('CNPJ')->item(0)->nodeValue;
         $CNPJ   = substr($CNPJ, -14);
-        $vNF    = $this->ICMSTot->getElementsByTagName("vNF")->item(0)->nodeValue * 100;
+        // PATCH 18: round(): vNF * 100 em float (100.29 * 100 = 10028,999...) truncava no %014d e
+        // a chave adicional do FS/FS-DA saía com o valor (e o DV) errados
+        $vNF    = (int) round((float) $this->ICMSTot->getElementsByTagName("vNF")->item(0)->nodeValue * 100);
         $vICMS  = $this->ICMSTot->getElementsByTagName("vICMS")->item(0)->nodeValue;
         if ($vICMS > 0) {
             $vICMS = 1;

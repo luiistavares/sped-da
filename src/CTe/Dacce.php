@@ -21,6 +21,8 @@ use NFePHP\DA\Legacy\Common;
 
 class Dacce extends Common
 {
+    use \NFePHP\DA\Common\XmlSanitizerTrait;
+
 
     public $chCTe;
     protected $logoAlign = 'C';
@@ -122,8 +124,19 @@ class Dacce extends Common
             if (is_file($this->xml)) {
                 $this->xml = file_get_contents($this->xml);
             }
+            // PATCH consultadanfe: blindagem 2-camadas contra XMLs mal-formados
+            $this->xml = self::sanitizeXmlFreeText($this->xml);
             $this->dom = new Dom();
-            $this->dom->loadXML($this->xml);
+            $useInternalErrors = libxml_use_internal_errors(true);
+            $loaded = $this->dom->loadXML($this->xml);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors($useInternalErrors);
+            if (!$loaded || !empty($errors)) {
+                $this->xml = self::aggressiveEscape($this->xml);
+                $this->dom = new Dom();
+                $this->dom->loadXML($this->xml);
+            }
             $this->procEventoCTe = $this->dom->getElementsByTagName("procEventoCTe")->item(0);
             $this->eventoCTe = $this->procEventoCTe->getElementsByTagName("eventoCTe")->item(0);
             $this->retEventoCTe = $this->procEventoCTe->getElementsByTagName("retEventoCTe")->item(0);

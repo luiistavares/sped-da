@@ -22,6 +22,8 @@ use NFePHP\DA\Legacy\Common;
 
 class Daevento extends Common
 {
+    use \NFePHP\DA\Common\XmlSanitizerTrait;
+
     public $chCTe;
     
     protected $logoAlign = 'C';
@@ -125,8 +127,19 @@ class Daevento extends Common
         } else {
             $docXML = file_get_contents($docXML);
         }
-        $this->dom = new DomDocument;
-        $this->dom->loadXML($docXML);
+        // PATCH consultadanfe: blindagem 2-camadas contra XMLs mal-formados
+        $docXML = self::sanitizeXmlFreeText($docXML);
+        $this->dom = new \DOMDocument;
+        $useInternalErrors = libxml_use_internal_errors(true);
+        $loaded = $this->dom->loadXML($docXML);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($useInternalErrors);
+        if (!$loaded || !empty($errors)) {
+            $docXML = self::aggressiveEscape($docXML);
+            $this->dom = new \DOMDocument;
+            $this->dom->loadXML($docXML);
+        }
         $this->procEventoCTe    = $this->dom->getElementsByTagName("procEventoCTe")->item(0);
         $this->evento           = $this->dom->getElementsByTagName("eventoCTe")->item(0);
         $this->infEvento        = $this->evento->getElementsByTagName("infEvento")->item(0);

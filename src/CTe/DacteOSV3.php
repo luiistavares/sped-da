@@ -23,6 +23,9 @@ use NFePHP\DA\Legacy\Common;
 
 class DacteOSV3 extends Common
 {
+    use \NFePHP\DA\Common\XmlSanitizerTrait;
+    use DacteLeiauteTrait; // PATCH 17
+
     const NFEPHP_SITUACAO_EXTERNA_CANCELADA = 1;
     const NFEPHP_SITUACAO_EXTERNA_DENEGADA = 2;
     const SIT_DPEC = 3;
@@ -83,6 +86,16 @@ class DacteOSV3 extends Common
     protected $preVisualizar;
     protected $flagDocOrigContinuacao;
     protected $arrayNFe = array();
+    protected $chavesCTeRef = array(); // PATCH 17 (e as propriedades abaixo, antes dinâmicas)
+    protected $toma;
+    protected $enderToma;
+    protected $rem;
+    protected $respSeg;
+    protected $infOutros;
+    protected $ICMSSN;
+    protected $cteProc;
+    protected $protCTe;
+    protected $qrCodMDFe;
     protected $siteDesenvolvedor;
     protected $nomeDesenvolvedor;
     protected $totPag;
@@ -145,6 +158,7 @@ class DacteOSV3 extends Common
         if (!empty($fonteDACTE)) {
             $this->fontePadrao = $fonteDACTE;
         }
+        $this->tituloDocs = 'DOCUMENTOS REFERENCIADOS'; // PATCH 17
         $this->formatPadrao = array(
             'font' => $this->fontePadrao,
             'size' => 6,
@@ -155,8 +169,19 @@ class DacteOSV3 extends Common
             'style' => 'B');
         //se for passado o xml
         if (!empty($this->xml)) {
+            // PATCH consultadanfe: blindagem 2-camadas contra XMLs mal-formados
+            $this->xml = self::sanitizeXmlFreeText($this->xml);
             $this->dom = new Dom();
-            $this->dom->loadXML($this->xml);
+            $useInternalErrors = libxml_use_internal_errors(true);
+            $loaded = $this->dom->loadXML($this->xml);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors($useInternalErrors);
+            if (!$loaded || !empty($errors)) {
+                $this->xml = self::aggressiveEscape($this->xml);
+                $this->dom = new Dom();
+                $this->dom->loadXML($this->xml);
+            }
             $this->cteProc = $this->dom->getElementsByTagName("cteOSProc")->item(0);
             $this->infCte = $this->dom->getElementsByTagName("infCte")->item(0);
             $this->ide = $this->dom->getElementsByTagName("ide")->item(0);
@@ -175,6 +200,16 @@ class DacteOSV3 extends Common
             // adicionar outros modais
             $this->infCteComp = $this->dom->getElementsByTagName("infCteComp")->item(0);
             $this->chaveCTeRef = $this->getTagValue($this->infCteComp, "chave");
+            // PATCH 17: no 3.00/4.00 a chave do CT-e complementado é "chCTe"
+            foreach ($this->dom->getElementsByTagName("infCteComp") as $comp) {
+                $ch = $this->getTagValue($comp, "chCTe") ?: $this->getTagValue($comp, "chave");
+                if ($ch !== '') {
+                    $this->chavesCTeRef[] = $ch;
+                }
+            }
+            if ($this->chaveCTeRef === '' && $this->chavesCTeRef) {
+                $this->chaveCTeRef = $this->chavesCTeRef[0];
+            }
             $this->vPrest = $this->dom->getElementsByTagName("vPrest")->item(0);
             $this->Comp = $this->dom->getElementsByTagName("Comp");
             $this->infNF = $this->dom->getElementsByTagName("infNF");
@@ -190,12 +225,12 @@ class DacteOSV3 extends Common
             if (!is_numeric($vTrib)) {
                 $vTrib = 0;
             }
-            $textoAdic = number_format($vTrib, 2, ",", ".");
+            $textoAdic = number_format((float)$vTrib, 2, ",", ".");
 
             $this->textoAdic = "o valor aproximado de tributos incidentes sobre o preço deste serviço é de R$"
                     .$textoAdic;
             $this->toma = $this->dom->getElementsByTagName("toma")->item(0);
-            $this->enderToma = $this->getTagValue($this->toma, "enderToma");
+            $this->enderToma = $this->toma !== null ? $this->toma->getElementsByTagName("enderToma")->item(0) : null; // PATCH 17
             //modal aquaviário
             $this->aquav = $this->dom->getElementsByTagName("aquav")->item(0);
 
@@ -300,6 +335,21 @@ class DacteOSV3 extends Common
         $this->orientacao = $orientacao;
         $this->papel = $papel;
         $this->logoAlign = $logoAlign;
+        // PATCH 17: duas passadas (ver Dacte::montaDACTE)
+        if (!$this->planejando) {
+            $this->planejando = true;
+            $this->montaDACTE($orientacao, $papel, $logoAlign, new Pdf($orientacao === 'L' ? 'L' : 'P', 'mm', $papel));
+            $this->totalFolhas = 1 + $this->zContinuacao(false, $this->zColunasDocs(), $this->zColunasComp());
+            $this->excedentes = [];
+            $this->docsPendentes = [];
+            $this->compPendentes = [];
+            $this->textosPendentes = [];
+            $this->desenhando = true;
+            $r = $this->montaDACTE($orientacao, $papel, $logoAlign, $classPDF);
+            $this->planejando = false;
+            $this->desenhando = false;
+            return $r;
+        }
 
         //$this->situacao_externa = $situacao_externa;
         //instancia a classe pdf
@@ -364,7 +414,8 @@ class DacteOSV3 extends Common
         //$r = $this->zCabecalho($x, $y, $pag, $totPag);
         $y += 70;
         $r = $this->zTomador($x, $y);
-        if ($this->tpCTe == '0') {
+        // PATCH 17: CT-e OS substituto (tpCTe 3) tem infCTeNorm → leiaute normal
+        if ($this->tpCTe == '0' || $this->dom->getElementsByTagName('infCTeNorm')->length > 0) {
             //Normal
             $y += 10;
             $x = $xInic;
@@ -392,23 +443,23 @@ class DacteOSV3 extends Common
                     $r = $this->zModalRod($x, $y);
                     break;
                 case '2':
-                    $y += 17.9;
+                    $y += 24.9; // PATCH 17: com 17,9 o quadro do modal cobria o SEGURO DA VIAGEM
                     $x = $xInic;
                     // TODO fmertins 31/10/14: este método não existe...
                     $r = $this->zModalAereo($x, $y);
                     break;
                 case '3':
-                    $y += 17.9;
+                    $y += 24.9; // PATCH 17
                     $x = $xInic;
                     $r = $this->zModalAquaviario($x, $y);
                     break;
                 case '4':
-                    $y += 17.9;
+                    $y += 24.9; // PATCH 17
                     $x = $xInic;
                     $r = $this->zModalFerr($x, $y);
                     break;
                 case '5':
-                    $y += 17.9;
+                    $y += 24.9; // PATCH 17
                     $x = $xInic;
                     // TODO fmertins 31/10/14: este método não existe...
                     $r = $this->zModalDutoviario($x, $y);
@@ -426,7 +477,7 @@ class DacteOSV3 extends Common
                 $y += 37;
             }
         } else {
-            $r = $this->zCabecalho(1, 1, $pag, $totPag);
+            $r = $this->zCabecalho(1, 1, '1', (string) $this->totalFolhas);
             //Complementado
             $y += 10;
             $x = $xInic;
@@ -456,8 +507,9 @@ class DacteOSV3 extends Common
         } else {
             $this->zRodape($xInic, $this->hPrint + 2.3);
         }
-        if ($this->flagDocOrigContinuacao == 1) {
-            $this->zdocOrigContinuacao(1, 71);
+        // PATCH 17: folhas de continuação
+        if ($this->desenhando) {
+            $this->zContinuacao(true, $this->zColunasDocs(), $this->zColunasComp());
         }
         //retorna o ID na CTe
         if ($classPDF !== false) {
@@ -580,32 +632,31 @@ class DacteOSV3 extends Common
             'size' => 9,
             'style' => 'B');
         $texto = $this->getTagValue($this->emit, "xNome");
-        $this->pTextBox($x1, $y1, $tw, 8, $texto, $aFont, 'T', 'C', 0, '');
+        // PATCH 17: nome e endereço quebram dentro do quadro (nada de microtexto
+        // nem de texto passando por cima do CNPJ); o complemento (xCpl) do
+        // emitente era lido e descartado — agora sai, como pede o Anexo II §3.
+        $this->zCampo($x1, $y1, $tw, 4.6, $texto, $aFont, 'EMITENTE - NOME', 'C');
         //endereço
         $y1 = $y1 + 3;
         $aFont = array(
             'font' => $this->fontePadrao,
             'size' => 7,
             'style' => '');
-        $fone = $this->getTagValue($this->enderEmit, "fone")!=""? $this->zFormatFone($this->enderEmit):'';
-        $lgr = $this->getTagValue($this->enderEmit, "xLgr");
-        $nro = $this->getTagValue($this->enderEmit, "nro");
-        $cpl = $this->getTagValue($this->enderEmit, "xCpl");
-        $bairro = $this->getTagValue($this->enderEmit, "xBairro");
+        $fone = $this->zFormatFone($this->enderEmit);
         $CEP = $this->getTagValue($this->enderEmit, "CEP");
         $CEP = $this->pFormat($CEP, "#####-###");
         $mun = $this->getTagValue($this->enderEmit, "xMun");
         $UF = $this->getTagValue($this->enderEmit, "UF");
         $xPais = $this->getTagValue($this->enderEmit, "xPais");
-        $texto = $lgr . "," . $nro . "\n" . $bairro . " - "
+        $texto = $this->zEnderecoTexto($this->enderEmit) . "\n"
             . $CEP . " - " . $mun . " - " . $UF . " " . $xPais
-            . "\n  Fone/Fax: " . $fone;
-        $this->pTextBox($x1 - 5, $y1 + 2, $tw + 5, 8, $texto, $aFont, 'T', 'C', 0, '');
+            . "\nFone/Fax: " . $fone;
+        $this->zCampo($x1, $y1 + 2, $tw, 9.6, $texto, $aFont, 'EMITENTE - ENDEREÇO', 'C');
         //CNPJ/CPF IE
         $cpfCnpj = $this->zFormatCNPJCPF($this->emit);
         $ie = $this->getTagValue($this->emit, "IE");
         $texto = 'CNPJ/CPF:  ' . $cpfCnpj . '     Insc.Estadual: ' . $ie;
-        $this->pTextBox($x1 - 1, $y1 + 12, $tw + 5, 8, $texto, $aFont, 'T', 'C', 0, '');
+        $this->zCaixaTexto($x1, $y1 + 12, $tw, 3, $texto, $aFont, 'C');
         //outra caixa
         $h1 = 17.5;
         $y1 = $y + $h + 1;
@@ -635,7 +686,7 @@ class DacteOSV3 extends Common
                 $texto = 'Substituto';
                 break;
             default:
-                $texto = 'ERRO' . $tpCTe . $tpServ;
+                $texto = $tpCTe; // PATCH 17: valor do XML, sem "ERRO"
         }
         $aFont = $this->formatNegrito;
         $this->pTextBox($x, $y1 + 3, $w * 0.5, $h1, $texto, $aFont, 'T', 'C', 0, '', false);
@@ -660,7 +711,7 @@ class DacteOSV3 extends Common
                 $texto = 'Transporte de Bagagem';
                 break;
             default:
-                $texto = 'ERRO' . $tpServ;
+                $texto = $tpServ; // PATCH 17
         }
         $aFont = $this->formatNegrito;
         $this->pTextBox($x + $wa + 4.5, $y1 + 3, $w * 0.5, $h1, $texto, $aFont, 'T', 'C', 0, '', false);
@@ -674,31 +725,31 @@ class DacteOSV3 extends Common
         $w = round($maxW * 0.335);
         $w1 = $w;
         $h = 11;
-        $this->pTextBox($x, $y, $w + 10, $h + 1);
+        $this->pTextBox($x, $y, $w + 21, $h + 1); // PATCH 17: coluna de 90 mm
         $texto = "DACTE OS";
         $aFont = array(
             'font' => $this->fontePadrao,
             'size' => 10,
             'style' => 'B');
-        $this->pTextBox($x, $y + 1, $w, $h, $texto, $aFont, 'T', 'C', 0, '');
+        $this->pTextBox($x, $y + 1, $w + 21, $h, $texto, $aFont, 'T', 'C', 0, '');
         $aFont = array(
             'font' => $this->fontePadrao,
             'size' => 9,
             'style' => '');
         $texto = "Documento Auxiliar do Conhecimento\nde Transporte Eletrônico para Outros Serviços";
         $h = 10;
-        $this->pTextBox($x, $y + 4, $w, $h, $texto, $aFont, 'T', 'C', 0, '', false);
+        $this->pTextBox($x, $y + 4, $w + 21, $h, $texto, $aFont, 'T', 'C', 0, '', false);
         $x1 = $x + $w + 2;
         $w = round($maxW * 0.22, 0);
         $w2 = $w;
         $h = 11;
-        $this->pTextBox($x1 + 8, $y, $w - 7.5, $h + 1);
+        $this->pTextBox($x1 + 19, $y, $w - 18.5, $h + 1);
         $texto = "MODAL";
         $aFont = array(
             'font' => $this->fontePadrao,
             'size' => 10,
             'style' => '');
-        $this->pTextBox($x1, $y + 1, $w, $h, $texto, $aFont, 'T', 'C', 0, '');
+        $this->pTextBox($x1 + 19, $y + 1, $w - 18.5, $h, $texto, $aFont, 'T', 'C', 0, '');
         switch ($this->modal) {
             case '1':
                 $texto = 'Rodoviário';
@@ -720,11 +771,11 @@ class DacteOSV3 extends Common
             'font' => $this->fontePadrao,
             'size' => 10,
             'style' => 'B');
-        $this->pTextBox($x1, $y + 5, $w, $h, $texto, $aFont, 'T', 'C', 0, '');
+        $this->zCaixaTexto($x1 + 19, $y + 5, $w - 18.5, 5, $texto, $aFont, 'C');
         //outra caixa
         $y += 12;
         $h = 9;
-        $w = $w1 + 10;
+        $w = $w1 + 21;
         $this->pTextBox($x, $y, $w, $h + 1);
         //modelo
         $wa = 12;
@@ -764,6 +815,12 @@ class DacteOSV3 extends Common
         $aFont = $this->formatNegrito;
         $this->pTextBox($xa, $y + 5, $wa, $h, $texto, $aFont, 'T', 'C', 0, '');
         $this->pdf->Line($xa + $wa, $y, $xa + $wa, $y + $h + 1);
+        //folha (PATCH 17: o DACTE OS não tinha FL — Anexo II §2.21.2)
+        $xa += $wa;
+        $wa = 11;
+        $this->pTextBox($xa, $y + 1, $wa, $h, 'FL', array('font' => $this->fontePadrao, 'size' => 8, 'style' => ''), 'T', 'C', 0, '');
+        $this->pTextBox($xa, $y + 5, $wa, $h, $pag . '/' . $totPag, $this->formatNegrito, 'T', 'C', 0, '');
+        $this->pdf->Line($xa + $wa, $y, $xa + $wa, $y + $h + 1);
         //data  hora de emissão
         $xa += $wa;
         $wa = 35;
@@ -786,11 +843,13 @@ class DacteOSV3 extends Common
         //$this->pTextBox($x, $y, $w + 0.5, $h1);
         //CODIGO DE BARRAS
         $chave_acesso = str_replace('CTe', '', $this->infCte->getAttribute("Id"));
-        $bW = 75;
+        // PATCH 17 (SITE-11): 85 mm centralizado como no Dacte (era 75 mm, módulo de
+        // 0,225 mm, lido só em 4x); margem clara de 2,5 mm de cada lado
+        $bW = 85;
         $bH = 10;
         //codigo de barras
         $this->pdf->SetFillColor(0, 0, 0);
-        $this->pdf->Code128($x + 2, $y + 2, $chave_acesso, $bW, $bH);
+        $this->pdf->Code128($x + ($w - $bW) / 2, $y + 2, $chave_acesso, $bW, $bH);
         $this->pdf->Line($xa + $wa, $y, $xa + $wa, $y + $h - 1);
         $this->pTextBox($x, $y + $h1, $w + 0.5, $h1 - 6);
         $texto = 'CHAVE DE ACESSO';
@@ -861,8 +920,8 @@ class DacteOSV3 extends Common
 
         if ($this->qrCodMDFe !== null) {
             $this->pQRDACTEOS($y-25);
-            $w = 38;
-            $x += 79;
+            $w = 27.5; // PATCH 17: coluna do QR Code depois da coluna de 90 mm
+            $x += 90;
             $this->pTextBox($x, $y - 34, $w + 0.5, $h + 41.5);
         }
         //CFOP
@@ -879,7 +938,7 @@ class DacteOSV3 extends Common
         $this->pTextBox($x, $y1, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
         $texto = $this->getTagValue($this->ide, "CFOP") . ' - ' . $this->getTagValue($this->ide, "natOp");
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y1 + 3.5, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y1 + 3.5, $w, 4.6, $texto, $aFont, 'CFOP - NATUREZA DA PRESTAÇÃO'); // PATCH 17
         //ORIGEM DA PRESTAÇÃO
         $y += $h + 7.5;
         $x = $oldX;
@@ -894,7 +953,7 @@ class DacteOSV3 extends Common
         $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
         $texto = $this->getTagValue($this->ide, "xMunIni") . ' - ' . $this->getTagValue($this->ide, "UFIni");
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3.5, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3.5, $w, 4.3, $texto, $aFont, 'INÍCIO DA PRESTAÇÃO'); // PATCH 17
         //PERCURSO DO VEÍCULO
         $x = $oldX + 69;
         $oldX = $x;
@@ -920,7 +979,7 @@ class DacteOSV3 extends Common
             }
         }
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3.5, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3.5, $w, 4.3, $texto, $aFont, 'PERCURSO DO VEÍCULO'); // PATCH 17
         //DESTINO DA PRESTAÇÃO
         $x = $oldX + $w + 1;
         $h = 8;
@@ -934,7 +993,7 @@ class DacteOSV3 extends Common
         $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
         $texto = $this->getTagValue($this->ide, "xMunFim") . ' - ' . $this->getTagValue($this->ide, "UFFim");
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3.5, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3.5, $w, 4.3, $texto, $aFont, 'TÉRMINO DA PRESTAÇÃO'); // PATCH 17
         //#########################################################################
         //Indicação de CTe Homologação, cancelamento e falta de protocolo
         $tpAmb = $this->ide->getElementsByTagName('tpAmb')->item(0)->nodeValue;
@@ -1138,83 +1197,8 @@ class DacteOSV3 extends Common
      */
     protected function zTomador($x = 0, $y = 0)
     {
-        $oldX = $x;
-        $oldY = $y;
-        if ($this->orientacao == 'P') {
-            $maxW = $this->wPrint;
-        } else {
-            $maxW = $this->wPrint - $this->wCanhoto;
-        }
-        $w = $maxW;
-        $h = 10;
-        $texto = 'TOMADOR DO SERVIÇO';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 1, '');
-        $aFont = $this->formatNegrito;
-        $texto = $this->getTagValue($this->toma, "xNome");
-        $this->pTextBox($x + 29, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x = $maxW * 0.60;
-        $texto = 'MUNICÍPIO';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $texto = $this->getTagValue($this->toma, "xMun");
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x + 15, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x = $maxW * 0.85;
-        $texto = 'UF';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $texto = $this->getTagValue($this->toma, "UF");
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x + 4, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x = $w - 18;
-        $texto = 'CEP';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $texto = $this->pFormat($this->getTagValue($this->toma, "CEP"), "#####-###");
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x + 6, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $y += 3;
-        $x = $oldX;
-        $texto = 'ENDEREÇO';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $aFont = $this->formatNegrito;
-        $texto = $this->getTagValue($this->toma, "xLgr") . ',';
-        $texto .= $this->getTagValue($this->toma, "nro");
-        $texto .= ($this->getTagValue($this->toma, "xCpl") != "") ?
-            ' - ' . $this->getTagValue($this->toma, "xCpl") : '';
-        $texto .= ' - ' . $this->getTagValue($this->toma, "xBairro");
-        $this->pTextBox($x + 16, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $y += 3;
-        $texto = 'CNPJ/CPF';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $texto = $this->zFormatCNPJCPF($this->toma);
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x + 13, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x = $x + 65;
-        $texto = 'INSCRIÇÃO ESTADUAL';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $texto = $this->getTagValue($this->toma, "IE");
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x + 28, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x = $w * 0.75;
-        $texto = 'PAÍS';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $texto = $this->getTagValue($this->toma, "xPais") != "" ?
-            $this->getTagValue($this->toma, "xPais") : 'BRASIL';
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x + 6, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x = $w - 27;
-        $texto = 'FONE';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $texto = $this->getTagValue($this->toma, "fone")!=""? $this->zFormatFone($this->toma):'';
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x + 8, $y, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
+        // PATCH 17: desenho comum em DacteLeiauteTrait::zTomadorQuadro
+        $this->zTomadorQuadro($x, $y);
     } //fim da função tomadorDACTE
 
     /**
@@ -1273,7 +1257,7 @@ class DacteOSV3 extends Common
         $texto = 'VALOR TOTAL DO SERVIÇO';
         $aFont = $this->formatPadrao;
         $this->pTextBox($x, $y, $w * 0.14, $h, $texto, $aFont, 'T', 'C', 0, '');
-        $texto = number_format($this->getTagValue($this->vPrest, "vTPrest"), 2, ",", ".");
+        $texto = number_format((float)$this->getTagValue($this->vPrest, "vTPrest"), 2, ",", ".");
         $aFont = array(
             'font' => $this->fontePadrao,
             'size' => 9,
@@ -1285,7 +1269,7 @@ class DacteOSV3 extends Common
         $texto = 'VALOR A RECEBER';
         $aFont = $this->formatPadrao;
         $this->pTextBox($x, $y, $w * 0.14, $h, $texto, $aFont, 'T', 'C', 0, '');
-        $texto = number_format($this->getTagValue($this->vPrest, "vRec"), 2, ",", ".");
+        $texto = number_format((float)$this->getTagValue($this->vPrest, "vRec"), 2, ",", ".");
         $aFont = array(
             'font' => $this->fontePadrao,
             'size' => 9,
@@ -1294,27 +1278,9 @@ class DacteOSV3 extends Common
         $auxX = $oldX;
         $yIniDados += 4;
 
-        foreach ($this->Comp as $k => $d) {
-            $nome = $this->Comp->item($k)->getElementsByTagName('xNome')->item(0)->nodeValue;
-            $valor = number_format(
-                $this->Comp->item($k)->getElementsByTagName('vComp')->item(0)->nodeValue,
-                2,
-                ",",
-                "."
-            );
-            if ($auxX > $w * 0.60) {
-                $yIniDados = $yIniDados + 4;
-                $auxX = $oldX;
-            }
-            $texto = $nome;
-            $aFont = $this->formatPadrao;
-            $this->pTextBox($auxX, $yIniDados, $w * 0.14, $h, $texto, $aFont, 'T', 'L', 0, '');
-            $auxX += $w * 0.14;
-            $texto = $valor;
-            $aFont = $this->formatPadrao;
-            $this->pTextBox($auxX, $yIniDados, $w * 0.14, $h, $texto, $aFont, 'T', 'L', 0, '');
-            $auxX += $w * 0.14;
-        }
+        // PATCH 17: até 12 componentes em 4 linhas; até 18 em 6 linhas mais juntas;
+        // os demais vão para a folha de continuação (Comp é 0..n no schema).
+        $this->zComponentes($oldX, $oldY, $yIniDados, $w);
     } //fim da função compValorDACTE
 
     /**
@@ -1410,25 +1376,25 @@ class DacteOSV3 extends Common
         $x += $w * 0.26;
 
         $texto = !empty($this->ICMS->getElementsByTagName("vBC")->item(0)->nodeValue) ?
-            number_format($this->getTagValue($this->ICMS, "vBC"), 2, ",", ".") : '';
+            number_format((float)$this->getTagValue($this->ICMS, "vBC"), 2, ",", ".") : '';
         $aFont = $this->formatNegrito;
         $this->pTextBox($x, $y, $w * $wCol02, $h, $texto, $aFont, 'T', 'L', 0, '');
         $x += $w * $wCol02;
 
         $texto = !empty($this->ICMS->getElementsByTagName("pICMS")->item(0)->nodeValue) ?
-            number_format($this->getTagValue($this->ICMS, "pICMS"), 2, ",", ".") : '';
+            number_format((float)$this->getTagValue($this->ICMS, "pICMS"), 2, ",", ".") : '';
         $aFont = $this->formatNegrito;
         $this->pTextBox($x, $y, $w * $wCol02, $h, $texto, $aFont, 'T', 'L', 0, '');
         $x += $w * $wCol02;
 
         $texto = !empty($this->ICMS->getElementsByTagName("vICMS")->item(0)->nodeValue) ?
-            number_format($this->getTagValue($this->ICMS, "vICMS"), 2, ",", ".") : '';
+            number_format((float)$this->getTagValue($this->ICMS, "vICMS"), 2, ",", ".") : '';
         $aFont = $this->formatNegrito;
         $this->pTextBox($x, $y, $w * $wCol02, $h, $texto, $aFont, 'T', 'L', 0, '');
         $x += $w * $wCol02;
 
         $texto = !empty($this->ICMS->getElementsByTagName("pRedBC")->item(0)->nodeValue) ?
-            number_format($this->getTagValue($this->ICMS, "pRedBC"), 2, ",", ".").'%' :'';
+            number_format((float)$this->getTagValue($this->ICMS, "pRedBC"), 2, ",", ".").'%' :'';
         $aFont = $this->formatNegrito;
         $this->pTextBox($x, $y, $w * $wCol02, $h, $texto, $aFont, 'T', 'L', 0, '');
 
@@ -1451,7 +1417,7 @@ class DacteOSV3 extends Common
         $cUF = $this->ide->getElementsByTagName('cUF')->item(0)->nodeValue;
         $CNPJ = "00000000000000" . $this->emit->getElementsByTagName('CNPJ')->item(0)->nodeValue;
         $CNPJ = substr($CNPJ, -14);
-        $vCT = number_format($this->getTagValue($this->vPrest, "vRec"), 2, "", "") * 100;
+        $vCT = number_format((float)$this->getTagValue($this->vPrest, "vRec"), 2, "", "") * 100;
         $ICMS_CST = $this->getTagValue($this->ICMS, "CST");
         switch ($ICMS_CST) {
             case '00':
@@ -1489,76 +1455,94 @@ class DacteOSV3 extends Common
      */
     protected function zInfPrestacaoServico($x = 0, $y = 0)
     {
-        $oldX = $x;
-        $oldY = $y;
-        if ($this->orientacao == 'P') {
-            $maxW = $this->wPrint;
-        } else {
-            $maxW = $this->wPrint - $this->wCanhoto;
-        }
+        // PATCH 17: quadro de 53 mm em qualquer modal (o montaDACTE já avança 53;
+        // com 35 mm sobrava um vão), quantidade e descrição presas às colunas e os
+        // documentos referenciados (infDocRef, 0..n) — antes descartados — em
+        // tabela; os que não couberem vão para a folha de continuação.
+        $maxW = $this->orientacao == 'P' ? $this->wPrint : $this->wPrint - $this->wCanhoto;
         $w = $maxW;
-
-        // SE FOR RODOVIARIO ( BTR-SEMPRE SERÁ )
-        if ($this->modal == '1') {
-            // 0 - Não; 1 - Sim Será lotação quando houver um único conhecimento de transporte por veículo,
-            // ou combinação veicular, e por viagem
-            $h = $this->lota == 1 ? 35 : 53;
-        } elseif ($this->modal == '3') {
-            $h = 37.6;
-        } else {
-            $h = 35;
-        }
-        $texto = 'INFORMAÇÕES DA PRESTAÇÃO DO SERVIÇO';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'C', 1, '');
-        $descr1 = 'QUANTIDADE';
-        $descr2 = 'DESCRIÇÃO DO SERVIÇO PRESTADO';
-
-        $y += 3.4;
-        $this->pdf->Line($x, $y, $w + 1, $y); // LINHA ABAIXO DO TEXTO: "DOCUMENTOS ORIGINÁRIOS
-        $texto = $descr1;
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w * 0.10, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $yIniDados = $y;
-
-        $x += $w * 0.14;
-        if ($this->modal == '1') {
-            if ($this->lota == 1) {
-                $this->pdf->Line($x, $y, $x, $y + 31.5); // TESTE
-            } else {
-                $this->pdf->Line($x, $y, $x, $y + 49.5); // TESTE
+        $h = 53;
+        $fRot = $this->formatPadrao;
+        $fVal = $this->formatNegrito;
+        $docs = $this->zLinhasDocs();
+        $titulo = 'INFORMAÇÕES DA PRESTAÇÃO DO SERVIÇO';
+        $this->pTextBox($x, $y, $w, $h, $titulo, $fRot, 'T', 'C', 1, '');
+        $this->pdf->Line($x, $y + 3.4, $w + 1, $y + 3.4);
+        $xd = $x + $w * 0.14;
+        $hServ = $docs ? 9 : $h - 3.4;
+        $this->pdf->Line($xd, $y + 3.4, $xd, $y + 3.4 + $hServ);
+        $this->pTextBox($x, $y + 3.4, $w * 0.14, 3, 'QUANTIDADE', $fRot, 'T', 'L', 0, '');
+        $this->pTextBox($xd + 1, $y + 3.4, $w * 0.5, 3, 'DESCRIÇÃO DO SERVIÇO PRESTADO', $fRot, 'T', 'L', 0, '');
+        $q = $this->getTagValue($this->infQ->item(0), "qCarga");
+        $this->zCaixaTexto($x, $y + 7.4, $xd - $x - 0.3, 4.5, $q === '' ? '' : number_format((float)$q, 4, ",", "."), $fVal);
+        $this->zCampo($xd + 0.5, $y + 7.4, $x + $w - $xd - 1, 4.5, $this->getTagValue($this->infServico->item(0), "xDescServ"), $fVal, 'DESCRIÇÃO DO SERVIÇO PRESTADO');
+        if ($docs) {
+            $y0 = $y + 3.4 + $hServ;
+            $passo = 3.5;
+            $cabem = 2 * (int) floor(($y + $h - 0.5 - ($y0 + 6.4)) / $passo);
+            $this->docsPendentes = array_slice($docs, $cabem);
+            $this->pdf->Line($x, $y0, $w + 1, $y0);
+            $this->zCaixaTexto($x, $y0, $w, 3.4, 'DOCUMENTOS REFERENCIADOS' . ($this->docsPendentes ? ' (CONTINUA NA PRÓXIMA FOLHA)' : ''), $fRot, 'C');
+            $this->pdf->Line($x, $y0 + 3.4, $w + 1, $y0 + 3.4);
+            $this->pdf->Line($x + $w * 0.5, $y0 + 3.4, $x + $w * 0.5, $y + $h);
+            $fDado = array('font' => $this->fontePadrao, 'size' => 7, 'style' => '');
+            $cols = $this->zColunasDocs();
+            foreach ([0, 1] as $g) {
+                foreach ($cols as $c) {
+                    $this->zCaixaTexto($x + ($g + $c[1]) * $w * 0.5, $y0 + 3.4, $c[2] * $w * 0.5, 3, $c[0], $fRot);
+                }
             }
-        } elseif ($this->modal == '3') {
-            $this->pdf->Line($x, $y, $x, $y + 34.1);
-        } else {
-            $this->pdf->Line($x, $y, $x, $y + 21.5);
+            foreach (array_slice($docs, 0, $cabem) as $i => $item) {
+                $yl = $y0 + 6.4 + intdiv($i, 2) * $passo;
+                foreach ($cols as $k => $c) {
+                    $this->zCaixaTexto($x + ($i % 2 + $c[1]) * $w * 0.5, $yl, $c[2] * $w * 0.5 - 0.3, $passo, $item[$k], $fDado);
+                }
+            }
         }
-
-        $x += $w * 0.08;
-        $texto = $descr2;
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
-
-        //$auxX = $oldX;
-        //$yIniDados += 3;
-
-        $x = $oldX;
-        $y = $y + 4;
-        $texto = number_format($this->getTagValue($this->infQ->item(0), "qCarga"), 3, ",", ".");
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y, $w * 0.26, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x += $w * 0.26;
-
-        $x = $oldX + 35;
-        $texto = $this->getTagValue($this->infServico->item(0), "xDescServ");
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y, $w * 0.26, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x += $w * 0.26;
-
-
-        $r = $this->zCabecalho(1, 1, '1', $this->totPag);
-        $contador = 0;
+        $this->zCabecalho(1, 1, '1', (string) $this->totalFolhas);
+        return $y + $h;
     } //fim da função zInfPrestacaoServico
+
+    /** PATCH 17: colunas dos documentos referenciados (meia largura). */
+    protected function zColunasDocs()
+    {
+        return [['SÉRIE/SUBSÉRIE', 0, 0.20], ['NÚMERO / CHAVE BP-e', 0.20, 0.46], ['EMISSÃO', 0.66, 0.15], ['VALOR', 0.81, 0.19]];
+    }
+
+    /** @return list<list<string>> documentos referenciados (infDocRef) */
+    protected function zLinhasDocs()
+    {
+        $linhas = [];
+        foreach ($this->dom->getElementsByTagName('infDocRef') as $d) {
+            $ch = $this->getTagValue($d, 'chBPe');
+            if ($ch !== '') {
+                $linhas[] = ['BP-e', $ch, '', ''];
+                continue;
+            }
+            $serie = $this->getTagValue($d, 'serie');
+            $sub = $this->getTagValue($d, 'subserie');
+            $v = $this->getTagValue($d, 'vDoc');
+            $linhas[] = [
+                trim($serie . ($sub !== '' ? '/' . $sub : '')),
+                $this->getTagValue($d, 'nDoc'),
+                $this->pSimpleGetDate($d, 'dEmi'),
+                $v === '' ? '' : number_format((float)$v, 2, ',', '.'),
+            ];
+        }
+        return $linhas;
+    }
+
+    /** PATCH 17: nova folha de continuação com o cabeçalho completo e o rodapé. */
+    protected function zNovaFolhaContinuacao()
+    {
+        $this->pdf->AddPage($this->orientacao, $this->papel);
+        $this->zCabecalho(1, 1, (string) $this->pdf->page, (string) $this->totalFolhas);
+        if ($this->orientacao == 'P') {
+            $this->zRodape(2, $this->hPrint - 2);
+        } else {
+            $this->zRodape(5, $this->hPrint + 2.3);
+        }
+    }
 
     /**
      * zDocCompl
@@ -1615,7 +1599,7 @@ class DacteOSV3 extends Common
             'size' => 8,
             'style' => '');
         $this->pTextBox($auxX, $yIniDados, $w, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $texto = number_format($this->getTagValue($this->vPrest, "vTPrest"), 2, ",", ".");
+        $texto = number_format((float)$this->getTagValue($this->vPrest, "vTPrest"), 2, ",", ".");
         $aFont = array(
             'font' => $this->fontePadrao,
             'size' => 8,
@@ -1633,37 +1617,33 @@ class DacteOSV3 extends Common
      */
     protected function zObs($x = 0, $y = 0)
     {
-        $oldX = $x;
-        $oldY = $y;
-        if ($this->orientacao == 'P') {
-            $maxW = $this->wPrint;
-        } else {
-            $maxW = $this->wPrint - $this->wCanhoto;
-        }
+        // PATCH 17: xObs + infAdFisco (antes concatenado e descartado) + CT-e OS
+        // substituído + campos que não couberam; ajusta ao quadro e continua na
+        // folha seguinte. O corte em "Motorista:" (2ª caixa fixa a 11,5 mm, que
+        // sobrepunha a 1ª quando o texto era longo) foi removido.
+        $maxW = $this->orientacao == 'P' ? $this->wPrint : $this->wPrint - $this->wCanhoto;
         $w = $maxW;
-        //$h = 18;
         $h = 18.8;
-        $texto = 'OBSERVAÇÕES GERAIS';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'C', 1, '');
-        $y += 3.4;
-        $this->pdf->Line($x, $y, $w + 1, $y);
-        $auxX = $oldX;
-        $yIniDados = $y;
-        $texto = '';
-        foreach ($this->compl as $k => $d) {
-            $xObs = $this->getTagValue($this->compl->item($k), "xObs");
-            $texto .= $xObs;
+        $this->pTextBox($x, $y, $w, $h, 'OBSERVAÇÕES GERAIS', $this->formatPadrao, 'T', 'C', 1, '');
+        $this->pdf->Line($x, $y + 3.4, $w + 1, $y + 3.4);
+        $partes = [];
+        foreach ($this->compl as $c) {
+            foreach ($c->childNodes as $n) {
+                if ($n->nodeType === XML_ELEMENT_NODE && $n->localName === 'xObs') {
+                    $partes[] = $n->nodeValue;
+                }
+            }
         }
-        $textoObs = explode("Motorista:", $texto);
-        $textoObs[1] = isset($textoObs[1]) ? "Motorista: ".$textoObs[1]: '';
-        $texto .= $this->getTagValue($this->imp, "infAdFisco", "\r\n");
-        $aFont = array(
-            'font' => $this->fontePadrao,
-            'size' => 7.5,
-            'style' => '');
-        $this->pTextBox($x, $y, $w, $h, $textoObs[0], $aFont, 'T', 'L', 0, '', false);
-        $this->pTextBox($x, $y+11.5, $w, $h, $textoObs[1], $aFont, 'T', 'L', 0, '', false);
+        $partes[] = $this->getTagValue($this->imp, "infAdFisco");
+        $sub = $this->dom->getElementsByTagName('infCteSub')->item(0);
+        if ($sub) {
+            $partes[] = 'CT-E OS SUBSTITUÍDO: ' . ($this->getTagValue($sub, 'chCte') ?: $this->getTagValue($sub, 'chCTe'));
+        }
+        $partes = array_merge($partes, $this->excedentes);
+        $texto = implode("\n", array_filter(array_map('trim', $partes), 'strlen'));
+        $aFont = array('font' => $this->fontePadrao, 'size' => 7.5, 'style' => '');
+        $this->zTextoComContinuacao($x, $y + 3.4, $w, $h - 3.6, $texto, $aFont, 'OBSERVAÇÕES GERAIS');
+        return $y + $h;
     } //fim da função obsDACTE
 
     /**
@@ -1676,55 +1656,64 @@ class DacteOSV3 extends Common
      */
     protected function zSeguro($x = 0, $y = 0)
     {
-        $oldX = $x;
-        $oldY = $y;
-        if ($this->orientacao == 'P') {
-            $maxW = $this->wPrint;
-        } else {
-            $maxW = $this->wPrint - $this->wCanhoto;
-        }
+        // PATCH 17: seguradora e apólice saíam sempre em branco (texto '' fixo);
+        // seg é 0..n — o 1º no quadro, os demais na folha de continuação.
+        $maxW = $this->orientacao == 'P' ? $this->wPrint : $this->wPrint - $this->wCanhoto;
         $w = $maxW;
         $h = 13;
-        $texto = 'SEGURO DA VIAGEM';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'C', 1, '');
-
+        $fRot = $this->formatPadrao;
+        $this->pTextBox($x, $y, $w, $h, 'SEGURO DA VIAGEM', $fRot, 'T', 'C', 1, '');
         $y += 3.4;
         $this->pdf->Line($x, $y, $w + 1, $y);
-        $texto = 'RESPONSÁVEL';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w * 0.33, $h, $texto, $aFont, 'T', 'L', 0, '');
-
-        $x += $w * 0.33;
-        $this->pdf->Line($x, $y, $x, $y + 9.5);
-        $texto = 'NOME DA SEGURADORA';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w * 0.33, $h, $texto, $aFont, 'T', 'L', 0, '');
-
-        $wCol02=0.33;
-        $x += $w * $wCol02;
-        $this->pdf->Line($x, $y, $x, $y + 9.5);
-        $texto = 'NÚMERO DA APÓLICE';
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y, $w * $wCol02, $h, $texto, $aFont, 'T', 'L', 0, '');
-
-        $x = $oldX;
-        $y = $y + 4;
-        $texto = $this->respSeg;
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y, $w * 0.26, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x += $w * 0.26;
-
-        $texto = '';
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y, $w * $wCol02, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x += $w * $wCol02;
-
-        $texto = '';
-        $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y, $w * $wCol02, $h, $texto, $aFont, 'T', 'L', 0, '');
-        $x += $w * $wCol02;
+        $cols = [[$x, $w * 0.33, 'RESPONSÁVEL'], [$x + $w * 0.33, $w * 0.33, 'NOME DA SEGURADORA'], [$x + $w * 0.66, $w * 0.34, 'NÚMERO DA APÓLICE']];
+        foreach ($cols as $i => [$xc, $wc, $rot]) {
+            if ($i > 0) {
+                $this->pdf->Line($xc, $y, $xc, $y + 9.5);
+            }
+            $this->pTextBox($xc, $y, $wc, 3, $rot, $fRot, 'T', 'L', 0, '');
+        }
+        $resp = ['4' => 'Emitente', '5' => 'Tomador do Serviço'];
+        $extra = [];
+        foreach ($this->dom->getElementsByTagName('seg') as $k => $seg) {
+            $valores = [
+                $resp[$this->getTagValue($seg, 'respSeg')] ?? $this->getTagValue($seg, 'respSeg'),
+                $this->getTagValue($seg, 'xSeg'),
+                $this->getTagValue($seg, 'nApol'),
+            ];
+            if ($k === 0) {
+                foreach ($cols as $i => [$xc, $wc, $rot]) {
+                    $this->zCampo($xc, $y + 4, $wc - 0.3, 5, $valores[$i], $this->formatNegrito, "SEGURO - $rot", 'L', 'T', 'SEGURO DA VIAGEM');
+                }
+            } else {
+                $extra[] = implode(' | ', array_filter($valores, 'strlen'));
+            }
+        }
+        if ($extra) {
+            $this->textosPendentes['SEGURO DA VIAGEM'] = trim(($this->textosPendentes['SEGURO DA VIAGEM'] ?? '') . "\n" . implode("\n", $extra));
+        }
+        return $y + $h;
     } //fim da função zSeguro
+
+    /**
+     * Stub para modal Aereo (modal=02). A sped-da nao implementa este modal
+     * no CT-e OS; o switch de modais chama zModalAereo mas o metodo nao existia,
+     * causando fatal error. Retorna a posicao Y atual sem renderizar quadro
+     * especifico (mesma estrategia do Patch 5 em Dacte.php).
+     */
+    protected function zModalAereo($x = 0, $y = 0)
+    {
+        // PATCH 17: era stub vazio (Patch 8) — os dados do grupo aereo sumiam
+        return $this->zModalGenerico($x, $y, 'DADOS ESPECÍFICOS DO MODAL AÉREO', $this->dom->getElementsByTagName('aereo')->item(0));
+    }
+
+    /**
+     * Stub para modal Dutoviario (modal=06). Mesma justificativa de zModalAereo.
+     */
+    protected function zModalDutoviario($x = 0, $y = 0)
+    {
+        // PATCH 17: era stub vazio — os dados do grupo duto sumiam
+        return $this->zModalGenerico($x, $y, 'DADOS ESPECÍFICOS DO MODAL DUTOVIÁRIO', $this->dom->getElementsByTagName('duto')->item(0));
+    }
 
     /**
      * zModalRod
@@ -1844,7 +1833,7 @@ class DacteOSV3 extends Common
         $this->pTextBox($x, $y, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
         $texto = $this->getTagValue($this->aquav, "prtEmb");
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.50 - 0.3, 4.7, $texto, $aFont, 'PORTO DE EMBARQUE', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
         $x += $w * 0.50;
         $this->pdf->Line($x, $y, $x, $y + 7.7);
         $texto = 'PORTO DE DESTINO';
@@ -1852,7 +1841,7 @@ class DacteOSV3 extends Common
         $this->pTextBox($x, $y, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
         $texto = $this->getTagValue($this->aquav, "prtDest");
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.50, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.50 - 0.3, 4.7, $texto, $aFont, 'PORTO DE DESTINO', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
         $y += 8;
         $this->pdf->Line(208, $y, 1, $y);
         $x = 1;
@@ -1861,7 +1850,7 @@ class DacteOSV3 extends Common
         $this->pTextBox($x, $y, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
         $texto = $this->getTagValue($this->aquav, "xNavio");
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.50 - 0.3, 4.7, $texto, $aFont, 'IDENTIFICAÇÃO DO NAVIO / REBOCADOR', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
         $x += $w * 0.50;
         $this->pdf->Line($x, $y, $x, $y + 7.7);
         $texto = 'VR DA B. DE CALC. AFRMM';
@@ -1869,7 +1858,7 @@ class DacteOSV3 extends Common
         $this->pTextBox($x, $y, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
         $texto = $this->getTagValue($this->aquav, "vPrest");
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.50, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.17 - 0.3, 4.7, $texto, $aFont, 'VR DA B. DE CALC. AFRMM', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
         $x += $w * 0.17;
         $this->pdf->Line($x, $y, $x, $y + 7.7);
         $texto = 'VALOR DO AFRMM';
@@ -1877,7 +1866,7 @@ class DacteOSV3 extends Common
         $this->pTextBox($x, $y, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
         $texto = $this->getTagValue($this->aquav, "vAFRMM");
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.50, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.12 - 0.3, 4.7, $texto, $aFont, 'VALOR DO AFRMM', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
         $x += $w * 0.12;
         $this->pdf->Line($x, $y, $x, $y + 7.7);
         $texto = 'TIPO DE NAVEGAÇÃO';
@@ -1893,7 +1882,7 @@ class DacteOSV3 extends Common
                 break;
         }
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.50, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.14 - 0.3, 4.7, $texto, $aFont, 'TIPO DE NAVEGAÇÃO', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
         $x += $w * 0.14;
         $this->pdf->Line($x, $y, $x, $y + 7.7);
         $texto = 'DIREÇÃO';
@@ -1915,7 +1904,7 @@ class DacteOSV3 extends Common
                 break;
         }
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.50, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.07 - 0.3, 4.7, $texto, $aFont, 'DIREÇÃO', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
         $y += 8;
         $this->pdf->Line(208, $y, 1, $y);
         $x = 1;
@@ -1953,7 +1942,7 @@ class DacteOSV3 extends Common
             $texto = '';
         }
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.23, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.50 - 0.3, 4.7, $texto, $aFont, 'IDENTIFICAÇÃO DOS CONTEINERS', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
         $x += $w * 0.50;
         $this->pdf->Line($x, $y, $x, $y + 7.7);
         $texto = 'IDENTIFICAÇÃO DAS BALSAS';
@@ -1982,7 +1971,7 @@ class DacteOSV3 extends Common
             }
         }
         $aFont = $this->formatNegrito;
-        $this->pTextBox($x, $y + 3, $w * 0.50, $h, $texto, $aFont, 'T', 'L', 0, '');
+        $this->zCampo($x, $y + 3, $w * 0.50 - 0.3, 4.7, $texto, $aFont, 'IDENTIFICAÇÃO DAS BALSAS', 'L', 'T', 'DADOS ESPECÍFICOS DO MODAL AQUAVIÁRIO'); // PATCH 17
     } //fim da função zModalRod
 
     /**
@@ -2359,76 +2348,8 @@ class DacteOSV3 extends Common
      */
     protected function zDadosAdic($x, $y, $pag, $h)
     {
-        $oldX = $x;
-        //###########################################################################
-        //DADOS ADICIONAIS DACTE
-        if ($this->orientacao == 'P') {
-            $w = $this->wPrint;
-        } else {
-            $w = $this->wPrint - $this->wCanhoto;
-        }
-        //INFORMAÇÕES COMPLEMENTARES
-        $texto = "USO EXCLUSIVO DO EMISSOR DO CT-E";
-        $y += 3;
-        $w = $this->wAdic;
-        $h = 20; //mudar
-        $aFont = array(
-            'font' => $this->fontePadrao,
-            'size' => 6,
-            'style' => '');
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'C', 1, '');
-        //$this->pdf->Line($x, $y + 3, $w * 1.385, $y + 3);
-        $this->pdf->Line($x, $y + 3, $w * 1.385, $y + 3);
-        //o texto com os dados adicionais foi obtido na função xxxxxx
-        //e carregado em uma propriedade privada da classe
-        //$this->wAdic com a largura do campo
-        //$this->textoAdic com o texto completo do campo
-        $y += 1;
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y + 3, $w - 2, $h - 3, $this->textoAdic, $aFont, 'T', 'L', 0, '', false);
-        //RESERVADO AO FISCO
-        $texto = "RESERVADO AO FISCO";
-        $x += $w;
-        $y -= 1;
-        if ($this->orientacao == 'P') {
-            $w = $this->wPrint - $w;
-        } else {
-            $w = $this->wPrint - $w - $this->wCanhoto;
-        }
-        $aFont = array(
-            'font' => $this->fontePadrao,
-            'size' => 6,
-            'style' => '');
-        $this->pTextBox($x, $y, $w, $h, $texto, $aFont, 'T', 'C', 1, '');
-        //inserir texto informando caso de contingência
-        //1 – Normal – emissão normal;
-        //2 – Contingência FS – emissão em contingência com impressão do DACTE em Formulário de Segurança;
-        //3 – Contingência SCAN – emissão em contingência  – SCAN;
-        //4 – Contingência DPEC - emissão em contingência com envio da Declaração Prévia de
-        //Emissão em Contingência – DPEC;
-        //5 – Contingência FS-DA - emissão em contingência com impressão do DACTE em Formulário de
-        //Segurança para Impressão de Documento Auxiliar de Documento Fiscal Eletrônico (FS-DA).
-        $xJust = $this->getTagValue($this->ide, 'xJust', 'Justificativa: ');
-        $dhCont = $this->getTagValue($this->ide, 'dhCont', ' Entrada em contingência : ');
-        $texto = '';
-        switch ($this->tpEmis) {
-            case 2:
-                $texto = 'CONTINGÊNCIA FS' . $dhCont . $xJust;
-                break;
-            case 3:
-                $texto = 'CONTINGÊNCIA SCAN' . $dhCont . $xJust;
-                break;
-            case 4:
-                $texto = 'CONTINGÊNCIA DPEC' . $dhCont . $xJust;
-                break;
-            case 5:
-                $texto = 'CONTINGÊNCIA FSDA' . $dhCont . $xJust;
-                break;
-        }
-        $y += 2;
-        $aFont = $this->formatPadrao;
-        $this->pTextBox($x, $y + 2, $w - 2, $h - 3, $texto, $aFont, 'T', 'L', 0, '', false);
-        return $y + $h;
+        // PATCH 17: desenho comum em DacteLeiauteTrait::zDadosAdicQuadro
+        return $this->zDadosAdicQuadro($x, $y, 20);
     } //fim zDadosAdic
 
     /**
@@ -2514,21 +2435,20 @@ class DacteOSV3 extends Common
      */
     protected function zFormatFone($field)
     {
-        try {
-            $fone = !empty($field->getElementsByTagName("fone")->item(0)->nodeValue) ?
-            $field->getElementsByTagName("fone")->item(0)->nodeValue : '';
-            $foneLen = strlen($fone);
-            if ($foneLen > 0) {
-                $fone2 = substr($fone, 0, $foneLen - 4);
-                $fone1 = substr($fone, 0, $foneLen - 8);
-                $fone = '(' . $fone1 . ') ' . substr($fone2, -4) . '-' . substr($fone, -4);
-            } else {
-                $fone = '';
-            }
-            return $fone;
-        } catch (Exception $exc) {
+        if (empty($field)) {
             return '';
         }
+        $fone = !empty($field->getElementsByTagName("fone")->item(0)->nodeValue) ?
+            $field->getElementsByTagName("fone")->item(0)->nodeValue : '';
+        $foneLen = strlen($fone);
+        // PATCH 17: celular de 11 dígitos saía "(119) 8765-4321"; o schema aceita
+        // 6 a 14 dígitos — só formata DDD+8/9 dígitos, o resto sai como veio.
+        if ($foneLen === 10 || $foneLen === 11) {
+            $fone = '(' . substr($fone, 0, 2) . ') ' . substr($fone, 2, $foneLen - 6) . '-' . substr($fone, -4);
+        } elseif ($foneLen > 0 && $foneLen < 10) {
+            $fone = substr($fone, 0, $foneLen - 4) . '-' . substr($fone, -4);
+        }
+        return $fone;
     } //fim formatFone
 
     /**
@@ -2623,11 +2543,12 @@ class DacteOSV3 extends Common
             array(-1, -1, -1, -1)
         )->setBackgroundColor('white');
         $qrcode = $bobj->getPngData();
-        $wQr = 36;
-        $hQr = 36;
-        $yQr = ($y + $margemInterna);
+        // PATCH 17: 26 × 26 mm (mínimo do Anexo II: 25 mm), centrado na coluna nova
+        $wQr = 26;
+        $hQr = 26;
+        $yQr = ($y + 3 + $margemInterna);
         if ($this->orientacao == 'P') {
-            $xQr = 170;
+            $xQr = 181;
         } else {
             $xQr = 250;
         }

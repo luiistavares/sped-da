@@ -105,8 +105,8 @@ class Common
      */
     protected function pConvertTime($DH = '')
     {
-        if ($DH == '') {
-            return '';
+        if (empty($DH)) {
+            return null;
         }
         $DH = str_replace('+', '-', $DH);
         $aDH = explode('T', $DH);
@@ -114,11 +114,11 @@ class Common
         if (count($aDH) > 1) {
             $inter = explode('-', $aDH[1]);
             $atDH = explode(':', $inter[0]);
-            $timestampDH = mktime($atDH[0], $atDH[1], $atDH[2], $adDH[1], $adDH[2], $adDH[0]);
+            $timestampDH = @mktime((int)$atDH[0], (int)$atDH[1], (int)($atDH[2] ?? 0), (int)$adDH[1], (int)$adDH[2], (int)$adDH[0]);
         } else {
-            $timestampDH = mktime($month = $adDH[1], $day = $adDH[2], $year = $adDH[0]);
+            $timestampDH = @mktime(0, 0, 0, (int)$adDH[1], (int)$adDH[2], (int)$adDH[0]);
         }
-        return $timestampDH;
+        return $timestampDH ?: null;
     }
 
     /**
@@ -278,10 +278,11 @@ class Common
         if (is_string($text)) {
             //remover espaços desnecessários
             $text = trim($text);
-            //converter o charset para o fpdf
-            $text = utf8_decode($text);
-            //decodifica os caracteres html no xml
-            $text = html_entity_decode($text);
+            // PATCH 11: decodifica as entidades ainda em UTF-8 e converte para
+            // Windows-1252, a codificação das fontes do FPDF: € “ ” – — … saem certos
+            // (o utf8_decode trocava por "?") e sem o utf8_decode deprecated do PHP 8.2.
+            $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $text = mb_convert_encoding($text, 'Windows-1252', 'UTF-8');
         } else {
             $text = (string) $text;
         }
@@ -293,9 +294,42 @@ class Common
         $this->pdf->SetFont($aFont['font'], $aFont['style'], $aFont['size']);
         //calcular o incremento
         $incY = $this->pdf->fontSize; //tamanho da fonte na unidade definida
+        // PATCH 12: texto que não cabe nunca vira microtexto nem sai da caixa.
+        // (a) linha única ($force) que só caberia abaixo de 4,5 pt: se a caixa tem
+        //     altura para 2+ linhas, quebra com a maior fonte que couber nela;
+        // (b) texto quebrado mais alto que a caixa: reduz a fonte (passos de 0,5,
+        //     mínimo 4,5 pt) até caber. Texto que já cabia não muda em nada.
+        $jaQuebrado = false;
+        $fonteMin = 4.5;
+        if ($text !== '' && $h > 0 && $hmax == 0 && $vOffSet == 0) {
+            $original = $text;
+            if ($force) {
+                $maior = 0;
+                foreach (explode("\n", $text) as $l) {
+                    $maior = max($maior, $this->pdf->getStringWidth(trim($l)));
+                }
+                if ($maior > $w && $aFont['size'] * $w / $maior < $fonteMin && $h >= 2 * $fonteMin / 72 * 25.4) {
+                    $force = false;
+                }
+            }
+            if (!$force) {
+                for ($s = $aFont['size']; ; $s -= 0.5) {
+                    $this->pdf->SetFont($aFont['font'], $aFont['style'], max($s, $fonteMin));
+                    $text = $original;
+                    $n = $this->pdf->WordWrap($text, $w);
+                    if ($this->pdf->fontSize * $n <= $h + 0.3 || $s <= $fonteMin) {
+                        break;
+                    }
+                }
+                $incY = $this->pdf->fontSize;
+                $jaQuebrado = true;
+            }
+        }
         if (!$force) {
             //verificar se o texto cabe no espaço
-            $n = $this->pdf->WordWrap($text, $w);
+            if (!$jaQuebrado) {
+                $n = $this->pdf->WordWrap($text, $w);
+            }
         } else {
             $n = 1;
         }
@@ -323,9 +357,11 @@ class Common
             $comp = $this->pdf->getStringWidth($texto);
             if ($force) {
                 $newSize = $aFont['size'];
-                while ($comp > $w) {
+                // PATCH 12: passos de 0,5 pt (eram de 1 pt: 6 → 5 → 4) e sem laço sem fim
+                while ($comp > $w && $newSize > 1) {
                     //estabelecer novo fonte
-                    $this->pdf->SetFont($aFont['font'], $aFont['style'], --$newSize);
+                    $newSize -= 0.5;
+                    $this->pdf->SetFont($aFont['font'], $aFont['style'], $newSize);
                     $comp = $this->pdf->getStringWidth($texto);
                 }
             }
@@ -414,10 +450,11 @@ class Common
         if (is_string($text)) {
             //remover espaços desnecessários
             $text = trim($text);
-            //converter o charset para o fpdf
-            $text = utf8_decode($text);
-            //decodifica os caracteres html no xml
-            $text = html_entity_decode($text);
+            // PATCH 11: decodifica as entidades ainda em UTF-8 e converte para
+            // Windows-1252, a codificação das fontes do FPDF: € “ ” – — … saem certos
+            // (o utf8_decode trocava por "?") e sem o utf8_decode deprecated do PHP 8.2.
+            $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $text = mb_convert_encoding($text, 'Windows-1252', 'UTF-8');
         } else {
             $text = (string) $text;
         }
