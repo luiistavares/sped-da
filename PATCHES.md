@@ -258,3 +258,15 @@ Arquivo novo `src/NFe/DanfeRtc.php` (estende `Danfe`; depende do Patch 9).
   por PHPUnit 9.6 (as versões antigas de phpunit/phpstan/phpcpd não instalam no PHP 8);
   script `exemplos`. **Nome do pacote mantido** (`nfephp-org/sped-da`).
 - `phpunit.xml.dist`, `tests/ExemplosTest.php`, `.github/workflows/tests.yml`, `examples/`.
+
+## Patch 20 — Danfe.php: NF-e reais sem grupos e grade sem cruzar coluna
+
+Vindo do corpus de XMLs reais do consultadanfe.com (2026-11-08):
+- `dest`, `enderDest`, `enderEmit`, `total`, `transp` ou `imposto` ausentes
+  viram campo em branco em vez de "getElementsByTagName() on null" (e sem o
+  "0-Por conta do Rem" inventado quando não há `transp`).
+- `pesoL`/`pesoB`/`qVol` com vírgula decimal ou texto não numérico ("NaN")
+  saem como vieram, sem quebrar nem virar 12,000.
+- Grade clássica: descrição quebra 0,5 mm dentro da coluna; valores vizinhos
+  colados e códigos longos reduzem em passos de 0,5 pt (mín. 4,5) ou quebram.
+- Item com descrição longa no fim da página não empurra os seguintes para o rodapé.
