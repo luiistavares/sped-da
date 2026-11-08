@@ -1096,6 +1096,10 @@ class Danfe extends Common
 
     protected function pNotaCancelada()
     {
+        // PATCH 21: a situacao informada vale tambem sem nfeProc (antes era ignorada).
+        if ($this->situacao_externa == self::SIT_CANCELADA) {
+            return true;
+        }
         if (!isset($this->nfeProc)) {
             return false;
         }
@@ -1103,8 +1107,7 @@ class Danfe extends Common
         return $cStat == '101' ||
                 $cStat == '151' ||
                 $cStat == '135' ||
-                $cStat == '155' ||
-                $this->situacao_externa == self::SIT_CANCELADA;
+                $cStat == '155';
     }
 
     protected function pNotaDPEC()
@@ -1114,6 +1117,10 @@ class Danfe extends Common
 
     protected function pNotaDenegada()
     {
+        // PATCH 21: idem; e o 303 (destinatario nao habilitado) tambem e denegada.
+        if ($this->situacao_externa == self::SIT_DENEGADA) {
+            return true;
+        }
         if (!isset($this->nfeProc)) {
             return false;
         }
@@ -1123,7 +1130,7 @@ class Danfe extends Common
         return $cStat == '110' ||
                $cStat == '301' ||
                $cStat == '302' ||
-               $this->situacao_externa == self::SIT_DENEGADA;
+               $cStat == '303';
     }
 
     /**

@@ -270,3 +270,12 @@ Vindo do corpus de XMLs reais do consultadanfe.com (2026-11-08):
 - Grade clássica: descrição quebra 0,5 mm dentro da coluna; valores vizinhos
   colados e códigos longos reduzem em passos de 0,5 pt (mín. 4,5) ou quebram.
 - Item com descrição longa no fim da página não empurra os seguintes para o rodapé.
+
+## Patch 21: situação informada vale sem nfeProc, e 303 é denegada (2026-11-08)
+
+**Arquivo:** `src/NFe/Danfe.php` (`pNotaCancelada`, `pNotaDenegada`).
+
+**Por quê:** revisão fiscal da impressão no danfe_v2. As duas funções retornavam `false` antes de ler `situacao_externa` quando o XML não tinha `nfeProc`: um `<NFe>` cancelado por evento saía sem a tarja, só com "FALTA PROTOCOLO" ou o aviso de contingência. E o cStat 303 (destinatário não habilitado) saía como nota limpa, embora o `nfeParaDanfe`, o `Danfce` e a etiqueta já o tratem como denegada.
+
+**Como reaplicar:** testar `situacao_externa` antes do `isset($this->nfeProc)` nas duas funções e incluir `'303'` na lista da denegada. Marcador `PATCH 21` no código; teste `NfeCanceladaOpcaoTest`.
+
