@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MDF-e FICTÍCIO para teste (T226): CNPJ e chave alfanuméricos (NT 2026.004),
+     DVs conferidos pela tool nfe-chave. Nenhum dado real. -->
+<mdfeProc xmlns="http://www.portalfiscal.inf.br/mdfe" versao="3.00">
+  <MDFe xmlns="http://www.portalfiscal.inf.br/mdfe">
+    <infMDFe Id="MDFe35260712ABC345000188580010000007891123456780" versao="3.00">
+      <ide>
+        <cUF>35</cUF>
+        <tpAmb>2</tpAmb>
+        <tpEmit>2</tpEmit>
+        <mod>58</mod>
+        <serie>1</serie>
+        <nMDF>789</nMDF>
+        <cMDF>12345678</cMDF>
+        <cDV>0</cDV>
+        <modal>3</modal>
+        <dhEmi>2026-07-10T10:00:00-03:00</dhEmi>
+        <tpEmis>1</tpEmis>
+        <procEmi>0</procEmi>
+        <verProc>TESTE-T226</verProc>
+        <UFIni>SP</UFIni>
+        <UFFim>SP</UFFim>
+        <infMunCarrega>
+          <cMunCarrega>3550308</cMunCarrega>
+          <xMunCarrega>SAO PAULO</xMunCarrega>
+        </infMunCarrega>
+      </ide>
+      <emit>
+        <CNPJ>12ABC345000188</CNPJ>
+        <IE>111111111111</IE>
+        <xNome>TRANSPORTADORA ALFA DE TESTE LTDA</xNome>
+        <xFant>ALFA TESTE</xFant>
+        <enderEmit>
+          <xLgr>RUA DE TESTE</xLgr>
+          <nro>100</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <CEP>01001000</CEP>
+          <UF>SP</UF>
+        </enderEmit>
+      </emit>
+      <infModal versaoModal="3.00">
+        <aquav><irin>IRIN12345</irin><MMSI>710000001</MMSI><tpEmb>02</tpEmb><cEmbar>EMB0001</cEmbar><xEmbar>EMBARCACAO FICTICIA DE TESTE EMBARCACAO FICTICIA DE TESTE EM</xEmbar><nViag>12345</nViag><cPrtEmb>BRSSZ</cPrtEmb><cPrtDest>BRMAO</cPrtDest><prtTrans>BRRIG</prtTrans><tpNav>1</tpNav><infTermCarreg><cTermCarreg>TC1</cTermCarreg><xTermCarreg>TERMINAL PORTUARIO FICTICIO NUMERO 1 COM NOME LONGO</xTermCarreg></infTermCarreg><infTermCarreg><cTermCarreg>TC2</cTermCarreg><xTermCarreg>TERMINAL PORTUARIO FICTICIO NUMERO 2 COM NOME LONGO</xTermCarreg></infTermCarreg><infTermCarreg><cTermCarreg>TC3</cTermCarreg><xTermCarreg>TERMINAL PORTUARIO FICTICIO NUMERO 3 COM NOME LONGO</xTermCarreg></infTermCarreg><infTermCarreg><cTermCarreg>TC4</cTermCarreg><xTermCarreg>TERMINAL PORTUARIO FICTICIO NUMERO 4 COM NOME LONGO</xTermCarreg></infTermCarreg><infTermCarreg><cTermCarreg>TC5</cTermCarreg><xTermCarreg>TERMINAL PORTUARIO FICTICIO NUMERO 5 COM NOME LONGO</xTermCarreg></infTermCarreg><infTermDescarreg><cTermDescarreg>TD1</cTermDescarreg><xTermDescarreg>TERMINAL PORTUARIO FICTICIO NUMERO 1 COM NOME LONGO</xTermDescarreg></infTermDescarreg><infTermDescarreg><cTermDescarreg>TD2</cTermDescarreg><xTermDescarreg>TERMINAL PORTUARIO FICTICIO NUMERO 2 COM NOME LONGO</xTermDescarreg></infTermDescarreg><infTermDescarreg><cTermDescarreg>TD3</cTermDescarreg><xTermDescarreg>TERMINAL PORTUARIO FICTICIO NUMERO 3 COM NOME LONGO</xTermDescarreg></infTermDescarreg><infTermDescarreg><cTermDescarreg>TD4</cTermDescarreg><xTermDescarreg>TERMINAL PORTUARIO FICTICIO NUMERO 4 COM NOME LONGO</xTermDescarreg></infTermDescarreg><infTermDescarreg><cTermDescarreg>TD5</cTermDescarreg><xTermDescarreg>TERMINAL PORTUARIO FICTICIO NUMERO 5 COM NOME LONGO</xTermDescarreg></infTermDescarreg><infEmbComb><cEmbComb>EMB1</cEmbComb><xBalsa>BALSA FICTICIA 1</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB2</cEmbComb><xBalsa>BALSA FICTICIA 2</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB3</cEmbComb><xBalsa>BALSA FICTICIA 3</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB4</cEmbComb><xBalsa>BALSA FICTICIA 4</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB5</cEmbComb><xBalsa>BALSA FICTICIA 5</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB6</cEmbComb><xBalsa>BALSA FICTICIA 6</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB7</cEmbComb><xBalsa>BALSA FICTICIA 7</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB8</cEmbComb><xBalsa>BALSA FICTICIA 8</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB9</cEmbComb><xBalsa>BALSA FICTICIA 9</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB10</cEmbComb><xBalsa>BALSA FICTICIA 10</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB11</cEmbComb><xBalsa>BALSA FICTICIA 11</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB12</cEmbComb><xBalsa>BALSA FICTICIA 12</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB13</cEmbComb><xBalsa>BALSA FICTICIA 13</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB14</cEmbComb><xBalsa>BALSA FICTICIA 14</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB15</cEmbComb><xBalsa>BALSA FICTICIA 15</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB16</cEmbComb><xBalsa>BALSA FICTICIA 16</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB17</cEmbComb><xBalsa>BALSA FICTICIA 17</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB18</cEmbComb><xBalsa>BALSA FICTICIA 18</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB19</cEmbComb><xBalsa>BALSA FICTICIA 19</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB20</cEmbComb><xBalsa>BALSA FICTICIA 20</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB21</cEmbComb><xBalsa>BALSA FICTICIA 21</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB22</cEmbComb><xBalsa>BALSA FICTICIA 22</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB23</cEmbComb><xBalsa>BALSA FICTICIA 23</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB24</cEmbComb><xBalsa>BALSA FICTICIA 24</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB25</cEmbComb><xBalsa>BALSA FICTICIA 25</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB26</cEmbComb><xBalsa>BALSA FICTICIA 26</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB27</cEmbComb><xBalsa>BALSA FICTICIA 27</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB28</cEmbComb><xBalsa>BALSA FICTICIA 28</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB29</cEmbComb><xBalsa>BALSA FICTICIA 29</xBalsa></infEmbComb><infEmbComb><cEmbComb>EMB30</cEmbComb><xBalsa>BALSA FICTICIA 30</xBalsa></infEmbComb><infUnidCargaVazia><idUnidCargaVazia>CONT0000001</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000002</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000003</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000004</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000005</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000006</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000007</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000008</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000009</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000010</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000011</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000012</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000013</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000014</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000015</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000016</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000017</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000018</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000019</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidCargaVazia><idUnidCargaVazia>CONT0000020</idUnidCargaVazia><tpUnidCargaVazia>1</tpUnidCargaVazia></infUnidCargaVazia><infUnidTranspVazia><idUnidTranspVazia>REB0001</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0002</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0003</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0004</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0005</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0006</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0007</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0008</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0009</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0010</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0011</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0012</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0013</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0014</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0015</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0016</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0017</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0018</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0019</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia><infUnidTranspVazia><idUnidTranspVazia>REB0020</idUnidTranspVazia><tpUnidTranspVazia>1</tpUnidTranspVazia></infUnidTranspVazia></aquav>
+      </infModal>
+      <infDoc>
+        <infMunDescarga>
+          <cMunDescarga>3509502</cMunDescarga>
+          <xMunDescarga>CAMPINAS</xMunDescarga>
+          <infNFe>
+            <chNFe>35260712ABC345000188550010000001231123456785</chNFe>
+          </infNFe>
+        </infMunDescarga>
+      </infDoc>
+      <tot><qMDFe>2</qMDFe>
+        <qNFe>1</qNFe>
+        <vCarga>1000.00</vCarga>
+        <cUnid>01</cUnid>
+        <qCarga>100.0000</qCarga>
+      </tot>
+      <infAdic>
+        <infCpl>DOCUMENTO DE TESTE SEM VALOR FISCAL</infCpl>
+      </infAdic>
+    </infMDFe>
+    <infMDFeSupl>
+      <qrCodMDFe>https://dfe-portal.svrs.rs.gov.br/mdfe/qrCode?chMDFe=35260712ABC345000188580010000007891123456780&amp;tpAmb=2</qrCodMDFe>
+    </infMDFeSupl>
+  </MDFe>
+  <protMDFe versao="3.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>TESTE</verAplic>
+      <chMDFe>35260712ABC345000188580010000007891123456780</chMDFe>
+      <dhRecbto>2026-07-10T10:01:00-03:00</dhRecbto>
+      <nProt>935260000000001</nProt>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso do MDF-e</xMotivo>
+    </infProt>
+  </protMDFe>
+</mdfeProc>

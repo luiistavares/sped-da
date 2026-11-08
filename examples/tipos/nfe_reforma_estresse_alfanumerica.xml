@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture sintetica da Reforma Tributaria (NT 2025.002 / DANFE NT 2026.010): emissao 02/12/2026, CNPJ alfanumerico 12.ABC.345/0001-88, IBS 0,1% + CBS 0,9% (ano-teste 2026) + IS 1%. DV conferido com nfe-chave. -->
+<!-- NF-e FICTÍCIA para teste (T21): CNPJ e chave alfanuméricos (NT 2026.004),
+     DVs conferidos pela tool nfe-chave. Nenhum dado real. -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35261212ABC345000188550010000001241123456787" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <cNF>12345678</cNF>
+        <natOp>VENDA DE MERCADORIA ADQUIRIDA DE TERCEIROS VENDA DE MERCADORIA ADQUIRIDA DE TERCEIROS EM OPERA</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>124</nNF>
+        <dhEmi>2026-12-02T10:00:00-03:00</dhEmi>
+        <dhSaiEnt>2026-12-02T10:00:00-03:00</dhSaiEnt>
+        <tpNF>1</tpNF>
+        <idDest>1</idDest>
+        <cMunFG>3550308</cMunFG>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>7</cDV>
+        <tpAmb>2</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>0</indFinal>
+        <indPres>1</indPres>
+        <procEmi>0</procEmi>
+        <verProc>TESTE-T21</verProc>
+      </ide>
+      <emit>
+        <CNPJ>12ABC345000188</CNPJ>
+        <xNome>EMITENTE FICTICIO COM RAZAO SOCIAL MUITO LONGA EMITENTE FICT</xNome>
+        <xFant>EMITENTE TESTE</xFant>
+        <enderEmit>
+          <xLgr>RUA DE TESTE</xLgr>
+          <nro>100</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <UF>SP</UF>
+          <CEP>01001000</CEP>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+          <fone>1130000000</fone>
+        </enderEmit>
+        <IE>111111111111</IE>
+        <CRT>2</CRT>
+      </emit>
+      <dest>
+        <CNPJ>11222333000181</CNPJ>
+        <xNome>DESTINATARIO FICTICIO COM NOME BEM COMPRIDO LTDA DESTINATARI</xNome>
+        <enderDest>
+          <xLgr>AVENIDA DE TESTE</xLgr>
+          <nro>200</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <UF>SP</UF>
+          <CEP>01002000</CEP>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+        </enderDest>
+        <indIEDest>1</indIEDest>
+        <IE>222222222222</IE>
+      </dest>
+      <det nItem="1">
+        <prod>
+          <cProd>COD-PRODUTO-SEM-ESPACO-COD-PRODUTO-SEM-ESPACO-COD-PRODUTO-SE</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>DESCRICAO DE PRODUTO COM CENTO E VINTE CARACTERES PARA TESTAR QUEBRA DE LINHA DESCRICAO DE PRODUTO COM CENTO E VINTE CAR</xProd>
+          <NCM>84713012</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UNIDAD</uCom>
+          <qCom>99999999999.9999</qCom>
+          <vUnCom>9999999999.9999</vUnCom>
+          <vProd>9999999999.99</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>2.0000</qTrib>
+          <vUnTrib>50.0000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>9999999999.99</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>1799999999.99</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISNT>
+              <CST>07</CST>
+            </PISNT>
+          </PIS>
+          <COFINS>
+            <COFINSNT>
+              <CST>07</CST>
+            </COFINSNT>
+          </COFINS>
+        <IS><CSTIS>000</CSTIS><cClassTribIS>000001</cClassTribIS><vBCIS>9999999999.99</vBCIS><pIS>1.00</pIS><vIS>99999999.99</vIS></IS><IBSCBS><CST>000</CST><cClassTrib>000001</cClassTrib><gIBSCBS><vBC>9999999999.99</vBC><gIBSUF><pIBSUF>17.7500</pIBSUF><vIBSUF>999999999.99</vIBSUF></gIBSUF><gIBSMun><pIBSMun>2.0500</pIBSMun><vIBSMun>888888888.88</vIBSMun></gIBSMun><vIBS>0.10</vIBS><gCBS><pCBS>8.8125</pCBS><vCBS>879999999.99</vCBS></gCBS></gIBSCBS></IBSCBS></imposto>
+      </det><det nItem="2">
+        <prod>
+          <cProd>7891234567890</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>PRODUTOSEMESPACONENHUMPARATESTARPALAVRALONGAPRODUTOSEMESPACONENHUMPARATESTARPALAVRALONGAPRODUTOSEMESPACONENHUMPARATESTAR</xProd>
+          <NCM>84713012</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UNIDAD</uCom>
+          <qCom>1.0000</qCom>
+          <vUnCom>0.0100</vUnCom>
+          <vProd>0.01</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>2.0000</qTrib>
+          <vUnTrib>50.0000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>9999999999.99</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>1799999999.99</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISNT>
+              <CST>07</CST>
+            </PISNT>
+          </PIS>
+          <COFINS>
+            <COFINSNT>
+              <CST>07</CST>
+            </COFINSNT>
+          </COFINS>
+        <IS><CSTIS>000</CSTIS><cClassTribIS>000001</cClassTribIS><vBCIS>9999999999.99</vBCIS><pIS>1.00</pIS><vIS>99999999.99</vIS></IS><IBSCBS><CST>000</CST><cClassTrib>000001</cClassTrib><gIBSCBS><vBC>9999999999.99</vBC><gIBSUF><pIBSUF>17.7500</pIBSUF><vIBSUF>999999999.99</vIBSUF></gIBSUF><gIBSMun><pIBSMun>2.0500</pIBSMun><vIBSMun>888888888.88</vIBSMun></gIBSMun><vIBS>0.10</vIBS><gCBS><pCBS>8.8125</pCBS><vCBS>879999999.99</vCBS></gCBS></gIBSCBS></IBSCBS></imposto>
+      </det><det nItem="3">
+        <prod>
+          <cProd>P3</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>ITEM CURTO</xProd>
+          <NCM>84713012</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>2.5000</qCom>
+          <vUnCom>12.3456</vUnCom>
+          <vProd>30.86</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>2.0000</qTrib>
+          <vUnTrib>50.0000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS00>
+              <orig>0</orig>
+              <CST>00</CST>
+              <modBC>3</modBC>
+              <vBC>9999999999.99</vBC>
+              <pICMS>18.00</pICMS>
+              <vICMS>1799999999.99</vICMS>
+            </ICMS00>
+          </ICMS>
+          <PIS>
+            <PISNT>
+              <CST>07</CST>
+            </PISNT>
+          </PIS>
+          <COFINS>
+            <COFINSNT>
+              <CST>07</CST>
+            </COFINSNT>
+          </COFINS>
+        <IS><CSTIS>000</CSTIS><cClassTribIS>000001</cClassTribIS><vBCIS>9999999999.99</vBCIS><pIS>1.00</pIS><vIS>99999999.99</vIS></IS><IBSCBS><CST>000</CST><cClassTrib>000001</cClassTrib><gIBSCBS><vBC>9999999999.99</vBC><gIBSUF><pIBSUF>17.7500</pIBSUF><vIBSUF>999999999.99</vIBSUF></gIBSUF><gIBSMun><pIBSMun>2.0500</pIBSMun><vIBSMun>888888888.88</vIBSMun></gIBSMun><vIBS>0.10</vIBS><gCBS><pCBS>8.8125</pCBS><vCBS>879999999.99</vCBS></gCBS></gIBSCBS></IBSCBS></imposto>
+      <infAdProd>INFORMACAO ADICIONAL DO PRODUTO COM LOTE, VALIDADE E OBSERVACOES LONGAS. INFORMACAO ADICIONAL DO PRODUTO COM LOTE, VALIDADE E OBSERVACOES LONGAS. INFORMACAO ADICIONAL DO PRODUTO COM LOTE, VALIDADE E OBSERVACOES LONGAS. INFORMACAO ADICIONAL DO PRODUTO COM LOTE, VALIDADE E OBSERVACOES LONGAS. INFORMACAO ADICIONAL DO PRODUTO COM LOTE, VALIDADE E OBSERVACOES LONGAS. INFORMACAO ADICIONAL DO PRODUTO COM LOTE, VALIDADE E OBSERVACOES LONGAS. INFORMACAO ADICIONAL DO PRODUTO COM LOTE, VALIDADE E OBSERVACO</infAdProd></det>
+      <total>
+        <ICMSTot>
+          <vBC>9999999999.99</vBC>
+          <vICMS>1799999999.99</vICMS>
+          <vICMSDeson>0.00</vICMSDeson>
+          <vFCP>9999999999.99</vFCP>
+          <vBCST>9999999999.99</vBCST>
+          <vST>9999999999.99</vST>
+          <vFCPST>9999999999.99</vFCPST>
+          <vFCPSTRet>0.00</vFCPSTRet>
+          <vProd>9999999999.99</vProd>
+          <vFrete>9999999999.99</vFrete>
+          <vSeg>9999999999.99</vSeg>
+          <vDesc>9999999999.99</vDesc>
+          <vII>0.00</vII>
+          <vIPI>9999999999.99</vIPI>
+          <vIPIDevol>0.00</vIPIDevol>
+          <vPIS>0.00</vPIS>
+          <vCOFINS>0.00</vCOFINS>
+          <vOutro>9999999999.99</vOutro>
+          <vNF>9999999999.99</vNF>
+        <vICMSUFDest>9999999999.99</vICMSUFDest><vFCPUFDest>9999999999.99</vFCPUFDest><qBCMono>99999999999.9999</qBCMono><vICMSMono>9999999999.99</vICMSMono><qBCMonoReten>99999999999.9999</qBCMonoReten><vICMSMonoReten>9999999999.99</vICMSMonoReten></ICMSTot><ISTot><vIS>9999999999.99</vIS></ISTot><IBSCBSTot><vBCIBSCBS>100.00</vBCIBSCBS><gIBS><gIBSUF><vDif>0.00</vDif><vDevTrib>0.00</vDevTrib><vIBSUF>9999999999.99</vIBSUF></gIBSUF><gIBSMun><vDif>0.00</vDif><vDevTrib>0.00</vDevTrib><vIBSMun>9999999999.99</vIBSMun></gIBSMun><vIBS>0.10</vIBS><vCredPres>0.00</vCredPres><vCredPresCondSus>0.00</vCredPresCondSus></gIBS><gCBS><vDif>0.00</vDif><vDevTrib>0.00</vDevTrib><vCBS>9999999999.99</vCBS><vCredPres>0.00</vCredPres><vCredPresCondSus>0.00</vCredPresCondSus></gCBS><gMono><vIBSMono>9999999999.99</vIBSMono><vCBSMono>9999999999.99</vCBSMono><vIBSMonoReten>9999999999.99</vIBSMonoReten><vCBSMonoReten>9999999999.99</vCBSMonoReten></gMono></IBSCBSTot>
+      </total>
+      <transp>
+        <modFrete>9</modFrete>
+      </transp>
+      <pag>
+        <detPag>
+          <tPag>01</tPag>
+          <vPag>100.00</vPag>
+        </detPag>
+      </pag>
+      <infAdic>
+        <infCpl>DOCUMENTO DE TESTE SEM VALOR FISCAL</infCpl>
+      </infAdic>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>TESTE</verAplic>
+      <chNFe>35261212ABC345000188550010000001241123456787</chNFe>
+      <dhRecbto>2026-12-02T10:01:00-03:00</dhRecbto>
+      <nProt>135260000000001</nProt>
+      <digVal>dGVzdGU=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>

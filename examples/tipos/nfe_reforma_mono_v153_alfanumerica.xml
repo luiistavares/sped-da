@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture sintetica da Reforma Tributaria (NT 2025.002 / DANFE NT 2026.010): emissao 02/12/2026, CNPJ alfanumerico 12.ABC.345/0001-88, IBS 0,1% + CBS 0,9% (ano-teste 2026) + IS 1%. DV conferido com nfe-chave. -->
+<!-- NF-e FICTÍCIA para teste (T21): CNPJ e chave alfanuméricos (NT 2026.004),
+     DVs conferidos pela tool nfe-chave. Nenhum dado real. -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35261212ABC345000188550010000001241123456787" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <cNF>12345678</cNF>
+        <natOp>VENDA DE MERCADORIA</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>124</nNF>
+        <dhEmi>2026-12-02T10:00:00-03:00</dhEmi>
+        <dhSaiEnt>2026-12-02T10:00:00-03:00</dhSaiEnt>
+        <tpNF>1</tpNF>
+        <idDest>1</idDest>
+        <cMunFG>3550308</cMunFG>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>7</cDV>
+        <tpAmb>2</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>0</indFinal>
+        <indPres>1</indPres>
+        <procEmi>0</procEmi>
+        <verProc>TESTE-T21</verProc>
+      </ide>
+      <emit>
+        <CNPJ>12ABC345000188</CNPJ>
+        <xNome>EMITENTE FICTICIO ALFANUMERICO LTDA</xNome>
+        <xFant>EMITENTE TESTE</xFant>
+        <enderEmit>
+          <xLgr>RUA DE TESTE</xLgr>
+          <nro>100</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <UF>SP</UF>
+          <CEP>01001000</CEP>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+          <fone>1130000000</fone>
+        </enderEmit>
+        <IE>111111111111</IE>
+        <CRT>3</CRT>
+      </emit>
+      <dest>
+        <CNPJ>11222333000181</CNPJ>
+        <xNome>DESTINATARIO FICTICIO LTDA</xNome>
+        <enderDest>
+          <xLgr>AVENIDA DE TESTE</xLgr>
+          <nro>200</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <UF>SP</UF>
+          <CEP>01002000</CEP>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+        </enderDest>
+        <indIEDest>1</indIEDest>
+        <IE>222222222222</IE>
+      </dest>
+      <det nItem="1"><prod><cProd>P001</cProd><cEAN>SEM GTIN</cEAN><xProd>PRODUTO DE TESTE 001</xProd><NCM>84713012</NCM><CFOP>5656</CFOP><uCom>UN</uCom><qCom>2.0000</qCom><vUnCom>50.0000000000</vUnCom><vProd>100.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>2.0000</qTrib><vUnTrib>50.0000000000</vUnTrib><indTot>1</indTot><comb><cProdANP>210203001</cProdANP><descANP>GASOLINA C COMUM GASOLINA C COMUM GASOLINA C COMUM GASOLINA C COMUM GASOLINA C COMUM GASOLINA C</descANP><pGLP>100.0000</pGLP><pGNn>0.0000</pGNn><pGNi>0.0000</pGNi><vPart>9999999999999.99</vPart><CODIF>123456712345671234567</CODIF><qTemp>9999999999.9999</qTemp><UFCons>SP</UFCons><CIDE><qBCProd>99999999999.9999</qBCProd><vAliqProd>9999999999.9999</vAliqProd><vCIDE>9999999999999.99</vCIDE></CIDE><encerrante><nBico>999</nBico><nBomba>999</nBomba><nTanque>999</nTanque><vEncIni>999999999999.999</vEncIni><vEncFin>999999999999.999</vEncFin></encerrante><pBio>100.0000</pBio><origComb><indImport>1</indImport><cUFOrig>35</cUFOrig><pOrig>100.0000</pOrig></origComb></comb></prod><imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>100.00</vBC><pICMS>18.00</pICMS><vICMS>18.00</vICMS></ICMS00></ICMS><PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS><IBSCBS><CST>620</CST><cClassTrib>620001</cClassTrib><gIBSCBSMono><gIBSMonoAdRem><gMonoPadrao><qBCMono>99999999999.9999</qBCMono><adRemIBS>999.9999</adRemIBS><vIBSMono>9999999999999.99</vIBSMono></gMonoPadrao><gMonoReten><qBCMonoReten>99999999999.9999</qBCMonoReten><adRemIBSReten>999.9999</adRemIBSReten><vIBSMonoReten>9999999999999.99</vIBSMonoReten></gMonoReten><gMonoRet><vIBSMonoRet>9999999999999.99</vIBSMonoRet></gMonoRet><gpBioDiferenca><qBCBioComb>99999999999.9999</qBCBioComb><vIBSDiferenca>9999999999999.99</vIBSDiferenca></gpBioDiferenca></gIBSMonoAdRem><gIBSMonoAdValorem><gMonoPadrao><vBCMono>9999999999999.99</vBCMono><pAliqMonoUF>999.9999</pAliqMonoUF><vIBSMonoUF>9999999999999.99</vIBSMonoUF><pAliqMonoMun>999.9999</pAliqMonoMun><vIBSMonoMun>9999999999999.99</vIBSMonoMun><vIBSMono>9999999999999.99</vIBSMono></gMonoPadrao><gMonoReten><vBCMonoReten>9999999999999.99</vBCMonoReten><pAliqMonoReten>999.9999</pAliqMonoReten><vIBSMonoReten>9999999999999.99</vIBSMonoReten></gMonoReten><gMonoRet><vIBSMonoRet>9999999999999.99</vIBSMonoRet></gMonoRet></gIBSMonoAdValorem><gCBSMonoAdRem><gMonoPadrao><qBCMono>99999999999.9999</qBCMono><adRemCBS>999.9999</adRemCBS><vCBSMono>9999999999999.99</vCBSMono></gMonoPadrao><gMonoReten><qBCMonoReten>99999999999.9999</qBCMonoReten><adRemCBSReten>999.9999</adRemCBSReten><vCBSMonoReten>9999999999999.99</vCBSMonoReten></gMonoReten><gMonoRet><vCBSMonoRet>9999999999999.99</vCBSMonoRet></gMonoRet><gpBioDiferenca><qBCBioComb>99999999999.9999</qBCBioComb><vCBSDiferenca>9999999999999.99</vCBSDiferenca></gpBioDiferenca></gCBSMonoAdRem><gCBSMonoAdValorem><gMonoPadrao><vBCMono>9999999999999.99</vBCMono><pAliqMonoCBS>999.9999</pAliqMonoCBS><vCBSMono>9999999999999.99</vCBSMono></gMonoPadrao><gMonoReten><vBCMonoReten>9999999999999.99</vBCMonoReten><pAliqMonoReten>999.9999</pAliqMonoReten><vCBSMonoReten>9999999999999.99</vCBSMonoReten></gMonoReten><gMonoRet><vCBSMonoRet>9999999999999.99</vCBSMonoRet></gMonoRet></gCBSMonoAdValorem><vTotIBSMonoItem>9999999999999.99</vTotIBSMonoItem><vTotCBSMonoItem>9999999999999.99</vTotCBSMonoItem></gIBSCBSMono></IBSCBS></imposto></det><det nItem="2"><prod><cProd>COD-2-SEM-ESPACO-COD-2-SEM-ESPACO-COD-2-SEM-ESPACO-COD-2-SEM</cProd><cEAN>SEM GTIN</cEAN><xProd>DESCRICAO DO ITEM 2 COM CENTO E VINTE CARACTERES PARA TESTAR QUEBRA DESCRICAO DO ITEM 2 COM CENTO E VINTE CARACTERES PAR</xProd><NCM>84713012</NCM><CFOP>5102</CFOP><uCom>UNIDAD</uCom><qCom>99999999999.9999</qCom><vUnCom>99999999999.9999999999</vUnCom><vProd>9999999999999.99</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>99999999999.9999</qTrib><vUnTrib>99999999999.9999999999</vUnTrib><vFrete>9999999999999.99</vFrete><vSeg>9999999999999.99</vSeg><vDesc>9999999999999.99</vDesc><vOutro>9999999999999.99</vOutro><indTot>1</indTot></prod><imposto><vTotTrib>9999999999999.99</vTotTrib><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>9999999999999.99</vBC><pICMS>99.9999</pICMS><vICMS>9999999999999.99</vICMS></ICMS00></ICMS><IPI><cEnq>999</cEnq><IPITrib><CST>50</CST><vBC>9999999999999.99</vBC><pIPI>99.9999</pIPI><vIPI>9999999999999.99</vIPI></IPITrib></IPI><PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS><IBSCBS><CST>620</CST><cClassTrib>620001</cClassTrib><gIBSCBSMono><gIBSMonoAdRem><gMonoPadrao><qBCMono>99999999999.9999</qBCMono><adRemIBS>999.9999</adRemIBS><vIBSMono>9999999999999.99</vIBSMono></gMonoPadrao><gMonoReten><qBCMonoReten>99999999999.9999</qBCMonoReten><adRemIBSReten>999.9999</adRemIBSReten><vIBSMonoReten>9999999999999.99</vIBSMonoReten></gMonoReten><gMonoRet><vIBSMonoRet>9999999999999.99</vIBSMonoRet></gMonoRet><gpBioDiferenca><qBCBioComb>99999999999.9999</qBCBioComb><vIBSDiferenca>9999999999999.99</vIBSDiferenca></gpBioDiferenca></gIBSMonoAdRem><gIBSMonoAdValorem><gMonoPadrao><vBCMono>9999999999999.99</vBCMono><pAliqMonoUF>999.9999</pAliqMonoUF><vIBSMonoUF>9999999999999.99</vIBSMonoUF><pAliqMonoMun>999.9999</pAliqMonoMun><vIBSMonoMun>9999999999999.99</vIBSMonoMun><vIBSMono>9999999999999.99</vIBSMono></gMonoPadrao><gMonoReten><vBCMonoReten>9999999999999.99</vBCMonoReten><pAliqMonoReten>999.9999</pAliqMonoReten><vIBSMonoReten>9999999999999.99</vIBSMonoReten></gMonoReten><gMonoRet><vIBSMonoRet>9999999999999.99</vIBSMonoRet></gMonoRet></gIBSMonoAdValorem><gCBSMonoAdRem><gMonoPadrao><qBCMono>99999999999.9999</qBCMono><adRemCBS>999.9999</adRemCBS><vCBSMono>9999999999999.99</vCBSMono></gMonoPadrao><gMonoReten><qBCMonoReten>99999999999.9999</qBCMonoReten><adRemCBSReten>999.9999</adRemCBSReten><vCBSMonoReten>9999999999999.99</vCBSMonoReten></gMonoReten><gMonoRet><vCBSMonoRet>9999999999999.99</vCBSMonoRet></gMonoRet><gpBioDiferenca><qBCBioComb>99999999999.9999</qBCBioComb><vCBSDiferenca>9999999999999.99</vCBSDiferenca></gpBioDiferenca></gCBSMonoAdRem><gCBSMonoAdValorem><gMonoPadrao><vBCMono>9999999999999.99</vBCMono><pAliqMonoCBS>999.9999</pAliqMonoCBS><vCBSMono>9999999999999.99</vCBSMono></gMonoPadrao><gMonoReten><vBCMonoReten>9999999999999.99</vBCMonoReten><pAliqMonoReten>999.9999</pAliqMonoReten><vCBSMonoReten>9999999999999.99</vCBSMonoReten></gMonoReten><gMonoRet><vCBSMonoRet>9999999999999.99</vCBSMonoRet></gMonoRet></gCBSMonoAdValorem><vTotIBSMonoItem>9999999999999.99</vTotIBSMonoItem><vTotCBSMonoItem>9999999999999.99</vTotCBSMonoItem></gIBSCBSMono></IBSCBS></imposto><vItem>9999999999999.99</vItem></det>
+      <total>
+        <ICMSTot>
+          <vBC>9999999999999.99</vBC>
+          <vICMS>9999999999999.99</vICMS>
+          <vICMSDeson>9999999999999.99</vICMSDeson>
+          <vFCP>9999999999999.99</vFCP>
+          <vBCST>9999999999999.99</vBCST>
+          <vST>9999999999999.99</vST>
+          <vFCPUFDest>9999999999999.99</vFCPUFDest><vICMSUFDest>9999999999999.99</vICMSUFDest><vICMSUFRemet>9999999999999.99</vICMSUFRemet><vFCPST>9999999999999.99</vFCPST>
+          <vFCPSTRet>9999999999999.99</vFCPSTRet>
+          <vProd>9999999999999.99</vProd>
+          <vFrete>9999999999999.99</vFrete>
+          <vSeg>9999999999999.99</vSeg>
+          <vDesc>9999999999999.99</vDesc>
+          <vII>9999999999999.99</vII>
+          <vIPI>9999999999999.99</vIPI>
+          <vIPIDevol>9999999999999.99</vIPIDevol>
+          <vPIS>9999999999999.99</vPIS>
+          <vCOFINS>9999999999999.99</vCOFINS>
+          <vOutro>9999999999999.99</vOutro>
+          <qBCMono>99999999999.9999</qBCMono><vICMSMono>9999999999999.99</vICMSMono><qBCMonoReten>99999999999.9999</qBCMonoReten><vICMSMonoReten>9999999999999.99</vICMSMonoReten><qBCMonoRet>99999999999.9999</qBCMonoRet><vICMSMonoRet>9999999999999.99</vICMSMonoRet><vNF>9999999999999.99</vNF>
+        <vTotTrib>9999999999999.99</vTotTrib></ICMSTot><ISTot><vIS>9999999999999.99</vIS></ISTot><IBSCBSTot><vBCIBSCBS>9999999999999.99</vBCIBSCBS><gIBS><gIBSUF><vDif>9999999999999.99</vDif><vDevTrib>9999999999999.99</vDevTrib><vIBSUF>9999999999999.99</vIBSUF></gIBSUF><gIBSMun><vDif>9999999999999.99</vDif><vDevTrib>9999999999999.99</vDevTrib><vIBSMun>9999999999999.99</vIBSMun></gIBSMun><vIBS>9999999999999.99</vIBS><vCredPres>9999999999999.99</vCredPres><vCredPresCondSus>9999999999999.99</vCredPresCondSus></gIBS><gCBS><vDif>9999999999999.99</vDif><vDevTrib>9999999999999.99</vDevTrib><vCBS>9999999999999.99</vCBS><vCredPres>9999999999999.99</vCredPres><vCredPresCondSus>9999999999999.99</vCredPresCondSus></gCBS><gMono><vIBSMono>9999999999999.99</vIBSMono><vCBSMono>9999999999999.99</vCBSMono><vIBSMonoReten>9999999999999.99</vIBSMonoReten><vCBSMonoReten>9999999999999.99</vCBSMonoReten><vIBSMonoRet>9999999999999.99</vIBSMonoRet><vCBSMonoRet>9999999999999.99</vCBSMonoRet></gMono><gEstornoCred><vIBSEstCred>9999999999999.99</vIBSEstCred><vCBSEstCred>9999999999999.99</vCBSEstCred></gEstornoCred></IBSCBSTot><vNFTot>9999999999999.99</vNFTot>
+      </total>
+      <transp>
+        <modFrete>9</modFrete>
+      </transp>
+      <pag>
+        <detPag>
+          <tPag>01</tPag>
+          <vPag>100.00</vPag>
+        </detPag>
+      </pag>
+      <infAdic>
+        <infCpl>DOCUMENTO DE TESTE SEM VALOR FISCAL</infCpl>
+      </infAdic>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>TESTE</verAplic>
+      <chNFe>35261212ABC345000188550010000001241123456787</chNFe>
+      <dhRecbto>2026-12-02T10:01:00-03:00</dhRecbto>
+      <nProt>135260000000001</nProt>
+      <digVal>dGVzdGU=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>

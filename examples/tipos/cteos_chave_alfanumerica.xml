@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CT-e OS (modelo 67) FICTÍCIO para teste (T199/T198): CNPJ e chave
+     alfanuméricos (NT 2026.004), DV conferido pela tool nfe-chave. Leiaute
+     CTeOS 4.00 (raiz cteOSProc/CTeOS, tomador em infCte/toma). Nenhum dado real. -->
+<cteOSProc xmlns="http://www.portalfiscal.inf.br/cte" versao="4.00">
+  <CTeOS xmlns="http://www.portalfiscal.inf.br/cte" versao="4.00">
+    <infCte Id="CTe35260712ABC345000188670010000007891123456780" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <cCT>12345678</cCT>
+        <CFOP>5357</CFOP>
+        <natOp>PRESTACAO DE SERVICO DE TRANSPORTE DE PESSOAS</natOp>
+        <mod>67</mod>
+        <serie>1</serie>
+        <nCT>789</nCT>
+        <dhEmi>2026-07-12T08:30:00-03:00</dhEmi>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>0</cDV>
+        <tpAmb>2</tpAmb>
+        <tpCTe>0</tpCTe>
+        <procEmi>0</procEmi>
+        <verProc>TESTE-T199</verProc>
+        <cMunEnv>3550308</cMunEnv>
+        <xMunEnv>SAO PAULO</xMunEnv>
+        <UFEnv>SP</UFEnv>
+        <modal>01</modal>
+        <tpServ>6</tpServ>
+        <indIEToma>1</indIEToma>
+        <cMunIni>3550308</cMunIni>
+        <xMunIni>SAO PAULO</xMunIni>
+        <UFIni>SP</UFIni>
+        <cMunFim>3509502</cMunFim>
+        <xMunFim>CAMPINAS</xMunFim>
+        <UFFim>SP</UFFim>
+      </ide>
+      <compl>
+        <xObs>FRETAMENTO FICTICIO - DOCUMENTO DE TESTE SEM VALOR FISCAL</xObs>
+      </compl>
+      <emit>
+        <CNPJ>12ABC345000188</CNPJ>
+        <IE>111111111111</IE>
+        <xNome>VIACAO FICTICIA ALFANUMERICA LTDA</xNome>
+        <xFant>VIACAO TESTE</xFant>
+        <enderEmit>
+          <xLgr>RUA DE TESTE</xLgr>
+          <nro>100</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <CEP>01001000</CEP>
+          <UF>SP</UF>
+          <fone>1130000000</fone>
+        </enderEmit>
+        <CRT>3</CRT>
+      </emit>
+      <toma>
+        <CNPJ>11222333000181</CNPJ>
+        <IE>222222222222</IE>
+        <xNome>TOMADOR FICTICIO DO FRETAMENTO LTDA</xNome>
+        <enderToma>
+          <xLgr>AVENIDA DE TESTE</xLgr>
+          <nro>200</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <CEP>01002000</CEP>
+          <UF>SP</UF>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+        </enderToma>
+      </toma>
+      <vPrest>
+        <vTPrest>1800.00</vTPrest>
+        <vRec>1800.00</vRec>
+        <Comp>
+          <xNome>FRETAMENTO</xNome>
+          <vComp>1800.00</vComp>
+        </Comp>
+      </vPrest>
+      <imp>
+        <ICMS>
+          <ICMS00>
+            <CST>00</CST>
+            <vBC>1800.00</vBC>
+            <pICMS>12.00</pICMS>
+            <vICMS>216.00</vICMS>
+          </ICMS00>
+        </ICMS>
+      </imp>
+      <infCTeNorm>
+        <infServico>
+          <xDescServ>FRETAMENTO EVENTUAL DE PASSAGEIROS</xDescServ>
+          <infQ>
+            <qCarga>40.0000</qCarga>
+          </infQ>
+        </infServico>
+        <infModal versaoModal="4.00">
+          <rodoOS>
+            <TAF>123456789012</TAF>
+            <veic>
+              <placa>ABC1D23</placa>
+              <UF>SP</UF>
+            </veic>
+          </rodoOS>
+        </infModal>
+      </infCTeNorm>
+    </infCte>
+    <infCTeSupl>
+      <qrCodCTe>https://homologacao.nfe.fazenda.sp.gov.br/CTeConsulta/qrCode?chCTe=35260712ABC345000188670010000007891123456780&amp;tpAmb=2</qrCodCTe>
+    </infCTeSupl>
+  </CTeOS>
+  <protCTe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>TESTE</verAplic>
+      <chCTe>35260712ABC345000188670010000007891123456780</chCTe>
+      <dhRecbto>2026-07-12T08:31:00-03:00</dhRecbto>
+      <nProt>135260000000067</nProt>
+      <digVal>dGVzdGU=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso do CT-e</xMotivo>
+    </infProt>
+  </protCTe>
+</cteOSProc>

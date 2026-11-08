@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MDF-e FICTÍCIO para teste (T226): CNPJ e chave alfanuméricos (NT 2026.004),
+     DVs conferidos pela tool nfe-chave. Nenhum dado real. -->
+<mdfeProc xmlns="http://www.portalfiscal.inf.br/mdfe" versao="3.00">
+  <MDFe xmlns="http://www.portalfiscal.inf.br/mdfe">
+    <infMDFe Id="MDFe35260712ABC345000188580010000007891123456780" versao="3.00">
+      <ide>
+        <cUF>35</cUF>
+        <tpAmb>2</tpAmb>
+        <tpEmit>2</tpEmit>
+        <mod>58</mod>
+        <serie>1</serie>
+        <nMDF>789</nMDF>
+        <cMDF>12345678</cMDF>
+        <cDV>0</cDV>
+        <modal>4</modal>
+        <dhEmi>2026-07-10T10:00:00-03:00</dhEmi>
+        <tpEmis>1</tpEmis>
+        <procEmi>0</procEmi>
+        <verProc>TESTE-T226</verProc>
+        <UFIni>SP</UFIni>
+        <UFFim>SP</UFFim>
+        <infMunCarrega>
+          <cMunCarrega>3550308</cMunCarrega>
+          <xMunCarrega>SAO PAULO</xMunCarrega>
+        </infMunCarrega>
+      </ide>
+      <emit>
+        <CNPJ>12ABC345000188</CNPJ>
+        <IE>111111111111</IE>
+        <xNome>TRANSPORTADORA ALFA DE TESTE LTDA</xNome>
+        <xFant>ALFA TESTE</xFant>
+        <enderEmit>
+          <xLgr>RUA DE TESTE</xLgr>
+          <nro>100</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <CEP>01001000</CEP>
+          <UF>SP</UF>
+        </enderEmit>
+      </emit>
+      <infModal versaoModal="3.00">
+        <ferrov><trem><xPref>PREF1</xPref><dhTrem>2026-07-10T09:00:00-03:00</dhTrem><xOri>ESTACAO DE ORIGEM ESTACAO DE ORIGEM ESTACAO DE ORIGEM ESTACA</xOri><xDest>ESTACAO DE DESTINO ESTACAO DE DESTINO ESTACAO DE DESTINO EST</xDest><qVag>60</qVag></trem><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100001</nVag><nSeq>1</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100002</nVag><nSeq>2</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100003</nVag><nSeq>3</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100004</nVag><nSeq>4</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100005</nVag><nSeq>5</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100006</nVag><nSeq>6</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100007</nVag><nSeq>7</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100008</nVag><nSeq>8</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100009</nVag><nSeq>9</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100010</nVag><nSeq>10</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100011</nVag><nSeq>11</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100012</nVag><nSeq>12</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100013</nVag><nSeq>13</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100014</nVag><nSeq>14</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100015</nVag><nSeq>15</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100016</nVag><nSeq>16</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100017</nVag><nSeq>17</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100018</nVag><nSeq>18</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100019</nVag><nSeq>19</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100020</nVag><nSeq>20</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100021</nVag><nSeq>21</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100022</nVag><nSeq>22</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100023</nVag><nSeq>23</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100024</nVag><nSeq>24</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100025</nVag><nSeq>25</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100026</nVag><nSeq>26</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100027</nVag><nSeq>27</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100028</nVag><nSeq>28</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100029</nVag><nSeq>29</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100030</nVag><nSeq>30</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100031</nVag><nSeq>31</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100032</nVag><nSeq>32</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100033</nVag><nSeq>33</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100034</nVag><nSeq>34</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100035</nVag><nSeq>35</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100036</nVag><nSeq>36</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100037</nVag><nSeq>37</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100038</nVag><nSeq>38</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100039</nVag><nSeq>39</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100040</nVag><nSeq>40</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100041</nVag><nSeq>41</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100042</nVag><nSeq>42</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100043</nVag><nSeq>43</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100044</nVag><nSeq>44</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100045</nVag><nSeq>45</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100046</nVag><nSeq>46</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100047</nVag><nSeq>47</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100048</nVag><nSeq>48</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100049</nVag><nSeq>49</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100050</nVag><nSeq>50</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100051</nVag><nSeq>51</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100052</nVag><nSeq>52</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100053</nVag><nSeq>53</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100054</nVag><nSeq>54</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100055</nVag><nSeq>55</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100056</nVag><nSeq>56</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100057</nVag><nSeq>57</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100058</nVag><nSeq>58</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100059</nVag><nSeq>59</nSeq><TU>60.000</TU></vag><vag><pesoBC>80.000</pesoBC><pesoR>79.500</pesoR><tpVag>HFE</tpVag><serie>ABC</serie><nVag>100060</nVag><nSeq>60</nSeq><TU>60.000</TU></vag></ferrov>
+      </infModal>
+      <infDoc>
+        <infMunDescarga>
+          <cMunDescarga>3509502</cMunDescarga>
+          <xMunDescarga>CAMPINAS</xMunDescarga>
+          <infNFe>
+            <chNFe>35260712ABC345000188550010000001231123456785</chNFe>
+          </infNFe>
+        </infMunDescarga>
+      </infDoc>
+      <tot>
+        <qNFe>1</qNFe>
+        <vCarga>1000.00</vCarga>
+        <cUnid>01</cUnid>
+        <qCarga>100.0000</qCarga>
+      </tot>
+      <infAdic>
+        <infCpl>DOCUMENTO DE TESTE SEM VALOR FISCAL</infCpl>
+      </infAdic>
+    </infMDFe>
+    <infMDFeSupl>
+      <qrCodMDFe>https://dfe-portal.svrs.rs.gov.br/mdfe/qrCode?chMDFe=35260712ABC345000188580010000007891123456780&amp;tpAmb=2</qrCodMDFe>
+    </infMDFeSupl>
+  </MDFe>
+  <protMDFe versao="3.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>TESTE</verAplic>
+      <chMDFe>35260712ABC345000188580010000007891123456780</chMDFe>
+      <dhRecbto>2026-07-10T10:01:00-03:00</dhRecbto>
+      <nProt>935260000000001</nProt>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso do MDF-e</xMotivo>
+    </infProt>
+  </protMDFe>
+</mdfeProc>

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CT-e FICTÍCIO para teste (T21): CNPJ e chave alfanuméricos (NT 2026.004),
+     DVs conferidos pela tool nfe-chave. Nenhum dado real. -->
+<cteProc xmlns="http://www.portalfiscal.inf.br/cte" versao="4.00">
+  <CTe xmlns="http://www.portalfiscal.inf.br/cte">
+    <infCte Id="CTe35260712ABC345000188570010000004561123456780" versao="4.00">
+      <ide>
+        <cUF>35</cUF>
+        <cCT>12345678</cCT>
+        <CFOP>5353</CFOP>
+        <natOp>PRESTACAO DE SERVICO DE TRANSPORTE</natOp>
+        <mod>57</mod>
+        <serie>1</serie>
+        <nCT>456</nCT>
+        <dhEmi>2026-07-10T10:00:00-03:00</dhEmi>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>0</cDV>
+        <tpAmb>2</tpAmb>
+        <tpCTe>0</tpCTe>
+        <procEmi>0</procEmi>
+        <verProc>TESTE-T21</verProc>
+        <cMunEnv>3550308</cMunEnv>
+        <xMunEnv>SAO PAULO</xMunEnv>
+        <UFEnv>SP</UFEnv>
+        <modal>01</modal>
+        <tpServ>0</tpServ>
+        <cMunIni>3550308</cMunIni>
+        <xMunIni>SAO PAULO</xMunIni>
+        <UFIni>SP</UFIni>
+        <cMunFim>3509502</cMunFim>
+        <xMunFim>CAMPINAS</xMunFim>
+        <UFFim>SP</UFFim>
+        <retira>1</retira>
+        <indIEToma>1</indIEToma>
+        <toma3>
+          <toma>0</toma>
+        </toma3>
+      </ide>
+      <compl>
+        <xObs>DOCUMENTO DE TESTE SEM VALOR FISCAL</xObs>
+      </compl>
+      <emit>
+        <CNPJ>12ABC345000188</CNPJ>
+        <IE>111111111111</IE>
+        <xNome>TRANSPORTADORA FICTICIA ALFANUMERICA LTDA</xNome>
+        <xFant>TRANSPORTADORA TESTE</xFant>
+        <enderEmit>
+          <xLgr>RUA DE TESTE</xLgr>
+          <nro>100</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <CEP>01001000</CEP>
+          <UF>SP</UF>
+          <fone>1130000000</fone>
+        </enderEmit>
+        <CRT>3</CRT>
+      </emit>
+      <rem>
+        <CNPJ>11222333000181</CNPJ>
+        <IE>222222222222</IE>
+        <xNome>REMETENTE FICTICIO LTDA</xNome>
+        <enderReme>
+          <xLgr>AVENIDA DE TESTE</xLgr>
+          <nro>200</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <CEP>01002000</CEP>
+          <UF>SP</UF>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+        </enderReme>
+      </rem>
+      <dest>
+        <CNPJ>11444777000161</CNPJ>
+        <IE>333333333333</IE>
+        <xNome>DESTINATARIO FICTICIO LTDA</xNome>
+        <enderDest>
+          <xLgr>RUA DO DESTINO</xLgr>
+          <nro>300</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3509502</cMun>
+          <xMun>CAMPINAS</xMun>
+          <CEP>13010000</CEP>
+          <UF>SP</UF>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+        </enderDest>
+      </dest>
+      <vPrest>
+        <vTPrest>250.00</vTPrest>
+        <vRec>250.00</vRec>
+        <Comp>
+          <xNome>FRETE PESO</xNome>
+          <vComp>250.00</vComp>
+        </Comp>
+      </vPrest>
+      <imp>
+        <ICMS>
+          <ICMS00>
+            <CST>00</CST>
+            <vBC>250.00</vBC>
+            <pICMS>12.00</pICMS>
+            <vICMS>30.00</vICMS>
+          </ICMS00>
+        </ICMS>
+      </imp>
+      <infCTeNorm>
+        <infCarga>
+          <vCarga>1000.00</vCarga>
+          <proPred>PRODUTO DE TESTE</proPred>
+          <infQ>
+            <cUnid>01</cUnid>
+            <tpMed>PESO BRUTO</tpMed>
+            <qCarga>100.0000</qCarga>
+          </infQ>
+        </infCarga>
+        <infDoc>
+          <infNFe>
+            <chave>35260712ABC345000188550010000001231123456785</chave>
+          </infNFe>
+        </infDoc>
+        <infModal versaoModal="4.00">
+          <rodo>
+            <RNTRC>12345678</RNTRC>
+          </rodo>
+        </infModal>
+      </infCTeNorm>
+    </infCte>
+  </CTe>
+  <protCTe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>TESTE</verAplic>
+      <chCTe>35260712ABC345000188570010000004561123456780</chCTe>
+      <dhRecbto>2026-07-10T10:01:00-03:00</dhRecbto>
+      <nProt>135260000000002</nProt>
+      <digVal>dGVzdGU=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso do CT-e</xMotivo>
+    </infProt>
+  </protCTe>
+</cteProc>

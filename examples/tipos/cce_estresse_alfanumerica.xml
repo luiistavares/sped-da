@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CC-e (evento 110110) FICTÍCIA de ESTRESSE (gerada por script): xCorrecao com
+     1000 caracteres (máximo do leiaute), HTML literal e caracteres especiais;
+     emitente com CNPJ alfanumérico 12.ABC.345/0001-88 e destinatário
+     QA.0TE.STE/0001-10 (DVs conferidos na tool nfe-chave), homologação.
+     Nenhum dado real. -->
+<procEventoNFe xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">
+  <evento versao="1.00">
+    <infEvento Id="ID11011035260712ABC34500018855001000000123112345678501">
+      <cOrgao>35</cOrgao>
+      <tpAmb>2</tpAmb>
+      <CNPJ>12ABC345000188</CNPJ>
+      <chNFe>35260712ABC345000188550010000001231123456785</chNFe>
+      <dhEvento>2026-07-21T15:40:00-03:00</dhEvento>
+      <tpEvento>110110</tpEvento>
+      <nSeqEvento>1</nSeqEvento>
+      <verEvento>1.00</verEvento>
+      <detEvento versao="1.00">
+        <descEvento>Carta de Correcao</descEvento>
+        <xCorrecao>INICIO-CORRECAO &lt;b&gt;campo&lt;/b&gt; &amp; &quot;aspas&quot; &apos;apostrofo&apos; Ç ã é ü ñ “tipográficas” – 100% R$ 1.234,56; PALAVRA-LONGA-SEM-ESPACO-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; onde se le item 1 leia-se item 1 corrigido; onde se le item 2 leia-se item 2 corrigido; onde se le item 3 leia-se item 3 corrigido; onde se le item 4 leia-se item 4 corrigido; onde se le item 5 leia-se item 5 corrigido; onde se le item 6 leia-se item 6 corrigido; onde se le item 7 leia-se item 7 corrigido; onde se le item 8 leia-se item 8 corrigido; onde se le item 9 leia-se item 9 corrigido; onde se le item 10 leia-se item 10 corrigido; onde se le item 11 leia-se item 11 corrigido; onde se le item 12 leia-se item 12 corrigido; onde se le item 13 leia-se item 13 corrigido; onde se le item 14 leia-se item 14 corrigido; onde se le item 15 leia-se item 15 corrigido; onde se le item 16 leia-se item 16 corrigido; onde se le item 17 leia-se item 17 corrigido; onde se le item 18 leia-se FIM-CORRECAO</xCorrecao>
+        <xCondUso>A Carta de Correcao e disciplinada pelo paragrafo 1o-A do art. 7o do Convenio S/N, de 15 de dezembro de 1970 e pode ser utilizada para regularizacao de erro ocorrido na emissao de documento fiscal, desde que o erro nao esteja relacionado com: I - as variaveis que determinam o valor do imposto tais como: base de calculo, aliquota, diferenca de preco, quantidade, valor da operacao ou da prestacao; II - a correcao de dados cadastrais que implique mudanca do remetente ou do destinatario; III - a data de emissao ou de saida.</xCondUso>
+      </detEvento>
+    </infEvento>
+  </evento>
+  <retEvento versao="1.00">
+    <infEvento>
+      <tpAmb>2</tpAmb>
+      <verAplic>SP_EVENTOS_TESTE</verAplic>
+      <cOrgao>35</cOrgao>
+      <cStat>135</cStat>
+      <xMotivo>Evento registrado e vinculado a NF-e</xMotivo>
+      <chNFe>35260712ABC345000188550010000001231123456785</chNFe>
+      <tpEvento>110110</tpEvento>
+      <xEvento>Carta de Correcao registrada</xEvento>
+      <nSeqEvento>1</nSeqEvento>
+      <CNPJDest>QA0TESTE000110</CNPJDest>
+      <dhRegEvento>2026-07-21T15:40:05-03:00</dhRegEvento>
+      <nProt>135260000012345</nProt>
+    </infEvento>
+  </retEvento>
+</procEventoNFe>

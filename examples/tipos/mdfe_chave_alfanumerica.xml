@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MDF-e FICTÍCIO para teste (T226): CNPJ e chave alfanuméricos (NT 2026.004),
+     DVs conferidos pela tool nfe-chave. Nenhum dado real. -->
+<mdfeProc xmlns="http://www.portalfiscal.inf.br/mdfe" versao="3.00">
+  <MDFe xmlns="http://www.portalfiscal.inf.br/mdfe">
+    <infMDFe Id="MDFe35260712ABC345000188580010000007891123456780" versao="3.00">
+      <ide>
+        <cUF>35</cUF>
+        <tpAmb>2</tpAmb>
+        <tpEmit>2</tpEmit>
+        <mod>58</mod>
+        <serie>1</serie>
+        <nMDF>789</nMDF>
+        <cMDF>12345678</cMDF>
+        <cDV>0</cDV>
+        <modal>1</modal>
+        <dhEmi>2026-07-10T10:00:00-03:00</dhEmi>
+        <tpEmis>1</tpEmis>
+        <procEmi>0</procEmi>
+        <verProc>TESTE-T226</verProc>
+        <UFIni>SP</UFIni>
+        <UFFim>SP</UFFim>
+        <infMunCarrega>
+          <cMunCarrega>3550308</cMunCarrega>
+          <xMunCarrega>SAO PAULO</xMunCarrega>
+        </infMunCarrega>
+      </ide>
+      <emit>
+        <CNPJ>12ABC345000188</CNPJ>
+        <IE>111111111111</IE>
+        <xNome>TRANSPORTADORA ALFA DE TESTE LTDA</xNome>
+        <xFant>ALFA TESTE</xFant>
+        <enderEmit>
+          <xLgr>RUA DE TESTE</xLgr>
+          <nro>100</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>SAO PAULO</xMun>
+          <CEP>01001000</CEP>
+          <UF>SP</UF>
+        </enderEmit>
+      </emit>
+      <infModal versaoModal="3.00">
+        <rodo>
+          <infANTT>
+            <RNTRC>12345678</RNTRC>
+          </infANTT>
+          <veicTracao>
+            <placa>ABC1D23</placa>
+            <tara>8000</tara>
+            <condutor>
+              <xNome>CONDUTOR DE TESTE</xNome>
+              <CPF>12345678909</CPF>
+            </condutor>
+            <tpRod>01</tpRod>
+            <tpCar>02</tpCar>
+            <UF>SP</UF>
+          </veicTracao>
+        </rodo>
+      </infModal>
+      <infDoc>
+        <infMunDescarga>
+          <cMunDescarga>3509502</cMunDescarga>
+          <xMunDescarga>CAMPINAS</xMunDescarga>
+          <infNFe>
+            <chNFe>35260712ABC345000188550010000001231123456785</chNFe>
+          </infNFe>
+        </infMunDescarga>
+      </infDoc>
+      <tot>
+        <qNFe>1</qNFe>
+        <vCarga>1000.00</vCarga>
+        <cUnid>01</cUnid>
+        <qCarga>100.0000</qCarga>
+      </tot>
+      <infAdic>
+        <infCpl>DOCUMENTO DE TESTE SEM VALOR FISCAL</infCpl>
+      </infAdic>
+    </infMDFe>
+    <infMDFeSupl>
+      <qrCodMDFe>https://dfe-portal.svrs.rs.gov.br/mdfe/qrCode?chMDFe=35260712ABC345000188580010000007891123456780&amp;tpAmb=2</qrCodMDFe>
+    </infMDFeSupl>
+  </MDFe>
+  <protMDFe versao="3.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>TESTE</verAplic>
+      <chMDFe>35260712ABC345000188580010000007891123456780</chMDFe>
+      <dhRecbto>2026-07-10T10:01:00-03:00</dhRecbto>
+      <nProt>935260000000001</nProt>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso do MDF-e</xMotivo>
+    </infProt>
+  </protMDFe>
+</mdfeProc>
